@@ -11,7 +11,10 @@ import { BackupError, backupSummary, restoreBackup } from '@/db/backup';
 import { SETTING_SQL } from '@/db/settings';
 import { useQuery } from '@/db/use-query';
 import { exportBackup, pickBackup } from '@/features/backup/backup-file';
-import { ReminderSettings } from '@/features/habits/reminder-settings';
+import { LockSettings } from '@/features/lock/lock-settings';
+import { ReminderSettings } from '@/features/reminders/reminder-settings';
+import { ReviewSettings } from '@/features/reminders/review-settings';
+import { TagManager } from '@/features/tags/tags';
 import { diffDays, formatDayShort, formatTimestamp, toDateKey } from '@/lib/dates';
 import { useToday } from '@/lib/use-today';
 import { radius, spacing } from '@/theme/theme';
@@ -100,8 +103,20 @@ export default function SettingsScreen() {
           <Button label="Przywróć z pliku" icon="download" variant="secondary" onPress={runImport} disabled={busy} />
         </Section>
 
+        <Section title="Blokada aplikacji">
+          <LockSettings />
+        </Section>
+
+        <Section title="Podsumowanie dnia">
+          <ReviewSettings />
+        </Section>
+
         <Section title="Przypomnienia">
           <ReminderSettings />
+        </Section>
+
+        <Section title="Tagi">
+          <TagManager />
         </Section>
 
         <AppText variant="caption" tone="textMuted" style={styles.version}>

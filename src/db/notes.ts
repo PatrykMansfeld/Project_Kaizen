@@ -7,11 +7,15 @@ export type Note = {
   pinned: 0 | 1;
   created_at: string;
   updated_at: string;
+  /** Id tagów po przecinku ('1,4') albo null — tylko w NOTES_SQL. */
+  tag_ids?: string | null;
 };
 
 export type NoteContent = Pick<Note, 'title' | 'body'>;
 
-export const NOTES_SQL = 'SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC';
+export const NOTES_SQL = `
+  SELECT notes.*, (SELECT GROUP_CONCAT(nt.tag_id) FROM note_tags nt WHERE nt.note_id = notes.id) AS tag_ids
+  FROM notes ORDER BY pinned DESC, updated_at DESC`;
 
 export function isNoteEmpty({ title, body }: NoteContent) {
   return title.trim() === '' && body.trim() === '';

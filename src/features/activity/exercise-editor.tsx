@@ -21,7 +21,9 @@ export function setDraft(reps: number | null, weight: number | null): SetDraft {
 }
 
 /** Serie z bazy → ćwiczenia w kolejności pierwszej serii. */
-export function draftsFromRows(rows: WorkoutSetRow[]): ExerciseDraft[] {
+export function draftsFromRows(
+  rows: Pick<WorkoutSetRow, 'exercise_id' | 'exercise_name' | 'reps' | 'weight_kg'>[],
+): ExerciseDraft[] {
   const drafts = new Map<number, ExerciseDraft>();
   for (const row of rows) {
     if (!drafts.has(row.exercise_id)) {

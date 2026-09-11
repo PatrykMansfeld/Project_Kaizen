@@ -3,6 +3,8 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Icon } from '@/components/icon';
 import type { Note } from '@/db/notes';
+import { parseTagIds, type Tag } from '@/db/tags';
+import { TagBadges } from '@/features/tags/tags';
 import { formatTimestamp, type DateKey } from '@/lib/dates';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -15,9 +17,9 @@ export function notePreview(note: Pick<Note, 'title' | 'body'>) {
   return { headline: lines[0] ?? 'Bez tytułu', preview: lines.slice(1).join(' ') };
 }
 
-type Props = { note: Note; today: DateKey; onPress: () => void };
+type Props = { note: Note; today: DateKey; onPress: () => void; tagsById?: Map<number, Tag> };
 
-export function NoteCard({ note, today, onPress }: Props) {
+export function NoteCard({ note, today, onPress, tagsById }: Props) {
   const { colors } = useTheme();
   const { headline, preview } = notePreview(note);
 
@@ -37,6 +39,7 @@ export function NoteCard({ note, today, onPress }: Props) {
           {preview}
         </AppText>
       ) : null}
+      {tagsById ? <TagBadges tagIds={parseTagIds(note.tag_ids)} byId={tagsById} /> : null}
       <AppText variant="caption" tone="textMuted">
         {formatTimestamp(note.updated_at, today)}
       </AppText>

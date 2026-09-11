@@ -3,7 +3,9 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { CheckCircle } from '@/components/check-circle';
 import { Icon } from '@/components/icon';
-import { PRIORITY_LABELS, type Task } from '@/db/tasks';
+import { parseTagIds, type Tag } from '@/db/tags';
+import { PRIORITY_LABELS, REPEAT_LABELS, type Task } from '@/db/tasks';
+import { TagBadges } from '@/features/tags/tags';
 import { formatDayShort, relativeDayLabel, toDateKey, type DateKey } from '@/lib/dates';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -15,22 +17,27 @@ type Props = {
   today: DateKey;
   onPress: () => void;
   onToggle: () => void;
+  /** Wszystkie tagi (z useTags w ekranie) — jedno zapytanie na listę, nie na wiersz. */
+  tagsById?: Map<number, Tag>;
 };
 
 function dayLabel(day: DateKey, today: DateKey) {
   return relativeDayLabel(day, today) ?? formatDayShort(day, today);
 }
 
-export function TaskRow({ task, today, onPress, onToggle }: Props) {
+export function TaskRow({ task, today, onPress, onToggle, tagsById }: Props) {
   const { colors } = useTheme();
   const done = task.completed_at !== null;
   const overdue = !done && task.due_date !== null && task.due_date < today;
+  const subtaskCount = task.subtask_count ?? 0;
+  const tagIds = parseTagIds(task.tag_ids);
 
   let dateText: string | null = null;
   if (done) {
     dateText = `Zrobione: ${dayLabel(toDateKey(new Date(task.completed_at!)), today).toLowerCase()}`;
   } else if (task.due_date) {
-    dateText = overdue ? `Zaległe · ${dayLabel(task.due_date, today)}` : dayLabel(task.due_date, today);
+    const when = dayLabel(task.due_date, today) + (task.due_time ? `, ${task.due_time}` : '');
+    dateText = overdue ? `Zaległe · ${when}` : when;
   }
   const dateColor = overdue ? colors.danger : colors.textSecondary;
 
@@ -51,7 +58,7 @@ export function TaskRow({ task, today, onPress, onToggle }: Props) {
           style={done && { color: colors.textMuted, textDecorationLine: 'line-through' }}>
           {task.title}
         </AppText>
-        {dateText || task.priority > 0 ? (
+        {dateText || task.priority > 0 || task.repeat || subtaskCount > 0 ? (
           <View style={styles.meta}>
             {dateText ? (
               <View style={styles.metaItem}>
@@ -69,8 +76,25 @@ export function TaskRow({ task, today, onPress, onToggle }: Props) {
                 </AppText>
               </View>
             ) : null}
+            {task.repeat && !done ? (
+              <View style={styles.metaItem}>
+                <Icon name="repeat" size={14} color={colors.textSecondary} />
+                <AppText variant="caption" tone="textSecondary">
+                  {REPEAT_LABELS[task.repeat]}
+                </AppText>
+              </View>
+            ) : null}
+            {subtaskCount > 0 ? (
+              <View style={styles.metaItem}>
+                <Icon name="checklist" size={14} color={colors.textSecondary} />
+                <AppText variant="caption" tone="textSecondary">
+                  {task.subtask_done ?? 0}/{subtaskCount}
+                </AppText>
+              </View>
+            ) : null}
           </View>
         ) : null}
+        {tagsById && tagIds.length > 0 ? <TagBadges tagIds={tagIds} byId={tagsById} /> : null}
       </View>
     </Pressable>
   );

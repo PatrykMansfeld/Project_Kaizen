@@ -10,7 +10,15 @@ type Table =
   | 'tasks'
   | 'notes'
   | 'journal_entries'
-  | 'settings';
+  | 'settings'
+  | 'subtasks'
+  | 'tags'
+  | 'task_tags'
+  | 'note_tags'
+  | 'measurements'
+  | 'goals'
+  | 'workout_templates'
+  | 'template_sets';
 
 /**
  * Wykonuje SELECT i ponawia go automatycznie, gdy zmieni się któraś z tabel w `tables`.

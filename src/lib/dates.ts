@@ -47,6 +47,13 @@ export function addDays(key: DateKey, days: number): DateKey {
   return toDateKey(date);
 }
 
+/** +N miesięcy; dzień przycinany do długości miesiąca (31 stycznia + 1 → 28/29 lutego). */
+export function addMonths(key: DateKey, months: number): DateKey {
+  const [y, m, d] = key.split('-').map(Number);
+  const lastDay = new Date(y, m - 1 + months + 1, 0).getDate();
+  return toDateKey(new Date(y, m - 1 + months, Math.min(d, lastDay)));
+}
+
 /** Liczba dni od `from` do `to` (ujemna, gdy `to` jest wcześniej). */
 export function diffDays(from: DateKey, to: DateKey): number {
   // Liczone w UTC, żeby zmiana czasu letni/zimowy nie dawała 23- lub 25-godzinnych dób.
@@ -107,6 +114,15 @@ export function formatDayShort(key: DateKey, today: DateKey = todayKey()): strin
   const date = fromDateKey(key);
   const base = `${date.getDate()} ${MONTHS_GENITIVE[date.getMonth()]}`;
   return key.slice(0, 4) === today.slice(0, 4) ? base : `${base} ${date.getFullYear()}`;
+}
+
+/** „7–13 września”, „28 września – 4 października”, z rokiem, jeśli inny niż bieżący. */
+export function formatDateRange(from: DateKey, to: DateKey, today: DateKey = todayKey()): string {
+  const a = fromDateKey(from);
+  const b = fromDateKey(to);
+  const year = b.getFullYear() !== fromDateKey(today).getFullYear() ? ` ${b.getFullYear()}` : '';
+  if (a.getMonth() === b.getMonth()) return `${a.getDate()}–${b.getDate()} ${MONTHS_GENITIVE[b.getMonth()]}${year}`;
+  return `${a.getDate()} ${MONTHS_GENITIVE[a.getMonth()]} – ${b.getDate()} ${MONTHS_GENITIVE[b.getMonth()]}${year}`;
 }
 
 /** Znacznik czasu ISO → „Dziś, 14:32”, „Wczoraj, 9:05” albo „8 września”. */

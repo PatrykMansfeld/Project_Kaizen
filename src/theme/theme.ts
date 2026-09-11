@@ -12,11 +12,12 @@ const light = {
   danger: '#E5484D',
   warning: '#F76B15',
   success: '#30A46C',
-  // Kolory modułów — m.in. kropki w kalendarzu.
+  // Kolory modułów — m.in. kropki w kalendarzu. Paleta (activity, habits, tasks, journal) sprawdzona
+  // walidatorem pod kątem daltonizmu w obu trybach; zmieniając je, sprawdź ją ponownie.
   activity: '#F76B15',
   habits: '#30A46C',
   tasks: '#0090FF',
-  journal: '#8E4EC6',
+  journal: '#B04AA8',
   notes: '#E2A336',
 };
 
@@ -36,10 +37,10 @@ const dark: ThemeColors = {
   danger: '#FF6369',
   warning: '#FF8B3E',
   success: '#3DD68C',
-  activity: '#FF8B3E',
-  habits: '#3DD68C',
-  tasks: '#3B9EFF',
-  journal: '#BF7AF0',
+  activity: '#D95926',
+  habits: '#199E70',
+  tasks: '#3987E5',
+  journal: '#C957B8',
   notes: '#F5C451',
 };
 

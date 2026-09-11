@@ -9,8 +9,11 @@ import { Button } from '@/components/button';
 import { Chip } from '@/components/chip';
 import { DatePickerSheet } from '@/components/date-picker-sheet';
 import { Icon } from '@/components/icon';
+import { PromptSheet } from '@/components/prompt-sheet';
 import { TextField } from '@/components/text-field';
 import { getLastSet, getWorkoutSets, replaceWorkoutSets, type Exercise } from '@/db/exercises';
+import { TEMPLATES_SQL, createTemplate, getTemplateSets, type WorkoutTemplate } from '@/db/templates';
+import { useQuery } from '@/db/use-query';
 import { createWorkout, deleteWorkout, getWorkout, updateWorkout } from '@/db/workouts';
 import {
   ExerciseEditor,
@@ -63,6 +66,8 @@ export default function WorkoutEditScreen() {
   const [loaded, setLoaded] = useState(isNew);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
+  const [templateNameOpen, setTemplateNameOpen] = useState(false);
+  const { rows: templates } = useQuery<WorkoutTemplate>(TEMPLATES_SQL, [], ['workout_templates', 'template_sets']);
 
   useEffect(() => {
     if (isNew) return;
@@ -82,6 +87,23 @@ export default function WorkoutEditScreen() {
       setLoaded(true);
     });
   }, [db, isNew, workoutId]);
+
+  // Szablon podmienia listę ćwiczeń (po potwierdzeniu, jeśli coś już wpisano).
+  const applyTemplate = async (templateId: number) => {
+    const drafts = draftsFromRows(await getTemplateSets(db, templateId));
+    const apply = () => setForm((current) => ({ ...current, exercises: drafts }));
+    if (form.exercises.length === 0) return apply();
+    Alert.alert('Wczytać szablon?', 'Obecna lista ćwiczeń zostanie zastąpiona ćwiczeniami z szablonu.', [
+      { text: 'Anuluj', style: 'cancel' },
+      { text: 'Wczytaj', onPress: apply },
+    ]);
+  };
+
+  const saveAsTemplate = async (name: string) => {
+    if (!exerciseSets?.length) return;
+    await createTemplate(db, name, exerciseSets);
+    Alert.alert('Zapisano szablon', `„${name}” pojawi się przy kolejnym treningu siłowym.`);
+  };
 
   // Nowe ćwiczenie dostaje pierwszą serię z ostatniego treningu, w którym było robione.
   const addExercise = async (exercise: Exercise) => {
@@ -251,9 +273,29 @@ export default function WorkoutEditScreen() {
 
             {isGym ? (
               <View style={styles.section}>
-                <AppText variant="label" tone="textSecondary">
-                  Ćwiczenia
-                </AppText>
+                <View style={styles.sectionHeader}>
+                  <AppText variant="label" tone="textSecondary" style={styles.flex}>
+                    Ćwiczenia
+                  </AppText>
+                  <Pressable onPress={() => router.push('/szablony')} hitSlop={8} accessibilityRole="button">
+                    <AppText variant="caption" tone="accent">
+                      Szablony ›
+                    </AppText>
+                  </Pressable>
+                </View>
+                {templates.length > 0 ? (
+                  <View style={styles.chips}>
+                    {templates.map((template) => (
+                      <Chip
+                        key={template.id}
+                        label={template.name}
+                        icon="content_copy"
+                        selected={false}
+                        onPress={() => applyTemplate(template.id)}
+                      />
+                    ))}
+                  </View>
+                ) : null}
                 <ExerciseEditor
                   exercises={form.exercises}
                   onChange={(exercises) => update({ exercises })}
@@ -263,6 +305,13 @@ export default function WorkoutEditScreen() {
                   <AppText variant="caption" tone="danger">
                     Wpisz liczbę powtórzeń w każdej serii (ciężar jest opcjonalny, np. 22,5).
                   </AppText>
+                ) : exerciseSets.length > 0 ? (
+                  <Button
+                    label="Zapisz jako szablon"
+                    icon="bookmark_add"
+                    variant="secondary"
+                    onPress={() => setTemplateNameOpen(true)}
+                  />
                 ) : null}
               </View>
             ) : null}
@@ -292,6 +341,13 @@ export default function WorkoutEditScreen() {
         clearable={false}
       />
 
+      <PromptSheet
+        visible={templateNameOpen}
+        title="Nazwa szablonu"
+        placeholder="np. Push, Nogi, FBW"
+        onSubmit={saveAsTemplate}
+        onClose={() => setTemplateNameOpen(false)}
+      />
       <ExercisePicker
         visible={exercisePickerOpen}
         excludeIds={form.exercises.map((exercise) => exercise.exerciseId)}
@@ -305,6 +361,8 @@ export default function WorkoutEditScreen() {
 const styles = StyleSheet.create({
   content: { gap: spacing.xl, padding: spacing.lg },
   section: { gap: spacing.sm },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center' },
+  flex: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   typeTile: {

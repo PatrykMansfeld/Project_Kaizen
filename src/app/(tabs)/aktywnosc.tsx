@@ -49,7 +49,10 @@ export default function ActivityScreen() {
     <Screen
       title="Aktywność"
       headerRight={
-        <IconButton icon="add" variant="filled" accessibilityLabel="Nowy trening" onPress={() => openWorkout('nowy')} />
+        <View style={styles.headerActions}>
+          <IconButton icon="monitor_weight" accessibilityLabel="Pomiary ciała" onPress={() => router.push('/pomiary')} />
+          <IconButton icon="add" variant="filled" accessibilityLabel="Nowy trening" onPress={() => openWorkout('nowy')} />
+        </View>
       }>
       <SectionList
         sections={sections}
@@ -122,6 +125,7 @@ function Separator() {
 }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   list: { flexGrow: 1, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl },
   header: { gap: spacing.md, paddingBottom: spacing.xs },
   summary: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.md },

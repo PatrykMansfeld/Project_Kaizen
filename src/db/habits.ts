@@ -7,21 +7,31 @@ export type Habit = {
   name: string;
   /** Emoji. */
   icon: string;
-  /** Klucz z palety features/habits/palette.ts. */
+  /** Klucz z palety theme/palette.ts. */
   color: string;
+  /** Cel na dzień: 1–5 dla licznika albo dowolna ilość, gdy jest `unit`. */
   target_per_day: number;
+  /** null = licznik (stuknięcie = +1); inaczej jednostka ilości, np. 'kroków'. */
+  unit: string | null;
   /** 'HH:MM' albo null (bez przypomnienia). */
   reminder_time: string | null;
+  /** Dni tygodnia: bit 0 = poniedziałek … bit 6 = niedziela (features/habits/streak.ts). */
+  days_mask: number;
   sort_order: number;
   archived: 0 | 1;
   created_at: string;
 };
 
-export type HabitInput = Pick<Habit, 'name' | 'icon' | 'color' | 'target_per_day' | 'reminder_time'>;
+export type HabitInput = Pick<
+  Habit,
+  'name' | 'icon' | 'color' | 'target_per_day' | 'unit' | 'reminder_time' | 'days_mask'
+>;
 
 export type HabitLog = { habit_id: number; date: DateKey; count: number };
 
 export const HABITS_SQL = 'SELECT * FROM habits WHERE archived = 0 ORDER BY sort_order, id';
+
+export const ARCHIVED_HABITS_SQL = 'SELECT * FROM habits WHERE archived = 1 ORDER BY name';
 
 export const HABIT_LOGS_RANGE_SQL =
   'SELECT habit_id, date, count FROM habit_logs WHERE date BETWEEN $from AND $to';
@@ -42,25 +52,55 @@ function toParams(input: HabitInput) {
     $icon: input.icon,
     $color: input.color,
     $target: input.target_per_day,
+    $unit: input.unit,
     $reminder: input.reminder_time,
+    $days: input.days_mask,
   };
 }
 
 export function createHabit(db: SQLiteDatabase, input: HabitInput) {
   return db.runAsync(
-    `INSERT INTO habits (name, icon, color, target_per_day, reminder_time, sort_order)
-     VALUES ($name, $icon, $color, $target, $reminder, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM habits))`,
+    `INSERT INTO habits (name, icon, color, target_per_day, unit, reminder_time, days_mask, sort_order)
+     VALUES ($name, $icon, $color, $target, $unit, $reminder, $days,
+       (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM habits))`,
     toParams(input),
   );
 }
 
 export function updateHabit(db: SQLiteDatabase, id: number, input: HabitInput) {
   return db.runAsync(
-    `UPDATE habits SET name = $name, icon = $icon, color = $color, target_per_day = $target,
-       reminder_time = $reminder
+    `UPDATE habits SET name = $name, icon = $icon, color = $color, target_per_day = $target, unit = $unit,
+       reminder_time = $reminder, days_mask = $days
      WHERE id = $id`,
     { ...toParams(input), $id: id },
   );
+}
+
+/** Archiwum: nawyk znika z list i przypomnień, ale historia zostaje. Przywrócony trafia na koniec listy. */
+export function setHabitArchived(db: SQLiteDatabase, id: number, archived: boolean) {
+  return db.runAsync(
+    `UPDATE habits SET archived = $archived,
+       sort_order = CASE WHEN $archived = 0 THEN (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM habits) ELSE sort_order END
+     WHERE id = $id`,
+    { $id: id, $archived: archived ? 1 : 0 },
+  );
+}
+
+/** Przesuwa nawyk o jedno miejsce w górę (-1) lub w dół (+1) na liście aktywnych. */
+export async function moveHabit(db: SQLiteDatabase, id: number, direction: -1 | 1) {
+  const ids = (await db.getAllAsync<{ id: number }>('SELECT id FROM habits WHERE archived = 0 ORDER BY sort_order, id')).map(
+    (row) => row.id,
+  );
+  const from = ids.indexOf(id);
+  const to = from + direction;
+  if (from < 0 || to < 0 || to >= ids.length) return;
+  [ids[from], ids[to]] = [ids[to], ids[from]];
+  // Numerujemy od nowa, żeby kolejność zawsze była jednoznaczna.
+  await db.withTransactionAsync(async () => {
+    for (const [index, habitId] of ids.entries()) {
+      await db.runAsync('UPDATE habits SET sort_order = ? WHERE id = ?', index + 1, habitId);
+    }
+  });
 }
 
 /** Usuwa nawyk razem z historią (ON DELETE CASCADE). */
@@ -81,7 +121,7 @@ export function setHabitCount(db: SQLiteDatabase, habitId: number, date: DateKey
   );
 }
 
-/** Stuknięcie: +1, a po osiągnięciu celu z powrotem do zera. */
+/** Stuknięcie w licznik: +1, a po osiągnięciu celu z powrotem do zera. */
 export function nextHabitCount(count: number, target: number) {
   return count >= target ? 0 : count + 1;
 }

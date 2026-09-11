@@ -1,12 +1,21 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export type SettingKey = 'last_export_at';
+export type SettingKey =
+  | 'last_export_at'
+  /** 'HH:MM' przypomnienia o wieczornym podsumowaniu dnia (brak = wyłączone). */
+  | 'review_time'
+  /** Ostatni dzień, dla którego zrobiono podsumowanie ('YYYY-MM-DD'). */
+  | 'last_review_date';
 
 export const SETTING_SQL = 'SELECT value FROM settings WHERE key = $key';
 
 export async function getSetting(db: SQLiteDatabase, key: SettingKey) {
   const row = await db.getFirstAsync<{ value: string }>(SETTING_SQL, { $key: key });
   return row?.value ?? null;
+}
+
+export function deleteSetting(db: SQLiteDatabase, key: SettingKey) {
+  return db.runAsync('DELETE FROM settings WHERE key = ?', key);
 }
 
 export function setSetting(db: SQLiteDatabase, key: SettingKey, value: string) {

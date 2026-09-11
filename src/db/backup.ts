@@ -14,9 +14,17 @@ export const BACKUP_TABLES = [
   'workout_sets',
   'habits',
   'habit_logs',
+  'tags',
   'tasks',
+  'subtasks',
+  'task_tags',
   'notes',
+  'note_tags',
   'journal_entries',
+  'measurements',
+  'goals',
+  'workout_templates',
+  'template_sets',
 ] as const;
 
 type BackupTable = (typeof BACKUP_TABLES)[number];
@@ -105,10 +113,19 @@ function checkReferences({ data }: Backup) {
     ['habit_logs', 'habit_id', 'habits'],
     ['workout_sets', 'workout_id', 'workouts'],
     ['workout_sets', 'exercise_id', 'exercises'],
+    ['subtasks', 'task_id', 'tasks'],
+    ['task_tags', 'task_id', 'tasks'],
+    ['task_tags', 'tag_id', 'tags'],
+    ['note_tags', 'note_id', 'notes'],
+    ['note_tags', 'tag_id', 'tags'],
+    ['goals', 'habit_id', 'habits'],
+    ['template_sets', 'template_id', 'workout_templates'],
+    ['template_sets', 'exercise_id', 'exercises'],
   ];
   for (const [table, column, parent] of references) {
     const parentIds = ids(data[parent]);
-    if (data[table]?.some((row) => !parentIds.has(row[column]))) {
+    // Puste powiązanie (NULL, np. cel bez nawyku) jest w porządku.
+    if (data[table]?.some((row) => row[column] !== null && row[column] !== undefined && !parentIds.has(row[column]))) {
       throw new BackupError(`Kopia jest uszkodzona (${table} wskazuje na nieistniejące ${parent}).`);
     }
   }
@@ -122,18 +139,28 @@ export function backupSummary({ data }: Backup) {
     plural(data.notes?.length ?? 0, ['notatka', 'notatki', 'notatek']),
     plural(data.journal_entries?.length ?? 0, ['wpis w dzienniku', 'wpisy w dzienniku', 'wpisów w dzienniku']),
     plural(data.workouts?.length ?? 0, ['trening', 'treningi', 'treningów']),
+    plural(data.measurements?.length ?? 0, ['pomiar', 'pomiary', 'pomiarów']),
   ];
   return parts.join(' · ');
 }
 
+/**
+ * Tabele wskazujące na rodzica bez ON DELETE CASCADE. Gdy kopia podmienia rodzica, a nie ma w niej
+ * tych tabel (starsza kopia), trzeba je wyczyścić — inaczej klucze obce zablokują usuwanie.
+ */
+const NON_CASCADING_CHILDREN: Partial<Record<BackupTable, BackupTable[]>> = {
+  exercises: ['workout_sets', 'template_sets'],
+};
+
 /** Zastępuje dane tabel obecnych w kopii (w jednej transakcji — przy błędzie nic się nie zmienia). */
 export async function restoreBackup(db: SQLiteDatabase, backup: Backup) {
   const tables = BACKUP_TABLES.filter((table) => backup.data[table] !== undefined);
+  const toClear = new Set<BackupTable>(tables.flatMap((table) => [table, ...(NON_CASCADING_CHILDREN[table] ?? [])]));
 
   await db.withTransactionAsync(async () => {
     // Najpierw dzieci, potem rodzice — inaczej klucze obce zablokują usuwanie.
-    for (const table of [...tables].reverse()) {
-      await db.runAsync(`DELETE FROM ${table}`);
+    for (const table of [...BACKUP_TABLES].reverse()) {
+      if (toClear.has(table)) await db.runAsync(`DELETE FROM ${table}`);
     }
 
     for (const table of tables) {

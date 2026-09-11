@@ -3,7 +3,8 @@ import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 
 import { migrateDb } from '@/db/migrations';
-import { ReminderSync } from '@/features/habits/reminder-sync';
+import { AppLock } from '@/features/lock/app-lock';
+import { ReminderSync } from '@/features/reminders/reminder-sync';
 import { useTheme } from '@/theme/use-theme';
 
 export default function RootLayout() {
@@ -31,6 +32,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         </Stack>
         <ReminderSync />
+        <AppLock />
       </ThemeProvider>
     </SQLiteProvider>
   );

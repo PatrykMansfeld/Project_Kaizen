@@ -7,7 +7,7 @@ import { Button } from '@/components/button';
 import { useQuery } from '@/db/use-query';
 import { spacing } from '@/theme/theme';
 
-import { getPermissionState, requestPermission, syncHabitReminders, type PermissionState } from './reminders';
+import { getPermissionState, requestPermission, syncReminders, type PermissionState } from './reminders';
 
 type ReminderRow = { id: number; name: string; icon: string; reminder_time: string };
 
@@ -33,7 +33,7 @@ export function ReminderSettings() {
   const enable = async () => {
     const state = await requestPermission();
     setPermission(state);
-    if (state === 'granted') void syncHabitReminders(db);
+    if (state === 'granted') void syncReminders(db);
   };
 
   if (permission === null) return null;
@@ -41,7 +41,10 @@ export function ReminderSettings() {
   return (
     <View style={styles.container}>
       {permission === 'unavailable' ? (
-        <AppText tone="textSecondary">Powiadomienia nie są dostępne w tej wersji aplikacji.</AppText>
+        <AppText tone="textSecondary">
+          W Expo Go na Androidzie powiadomienia są niedostępne. Godziny przypomnień możesz już ustawić — zaczną
+          działać po zainstalowaniu aplikacji (APK).
+        </AppText>
       ) : permission === 'granted' ? (
         <AppText tone="textSecondary">
           Powiadomienia są włączone. Godzinę przypomnienia ustawisz w edycji nawyku.

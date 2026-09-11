@@ -8,9 +8,10 @@ type Props = {
   value: string;
   onChangeText: (text: string) => void;
   placeholder?: string;
+  autoFocus?: boolean;
 };
 
-export function SearchField({ value, onChangeText, placeholder = 'Szukaj' }: Props) {
+export function SearchField({ value, onChangeText, placeholder = 'Szukaj', autoFocus }: Props) {
   const { colors } = useTheme();
 
   return (
@@ -25,6 +26,7 @@ export function SearchField({ value, onChangeText, placeholder = 'Szukaj' }: Pro
         selectionColor={colors.accentSoft}
         returnKeyType="search"
         autoCorrect={false}
+        autoFocus={autoFocus}
         style={[styles.input, { color: colors.text }]}
       />
       {value ? (

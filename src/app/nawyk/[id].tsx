@@ -10,10 +10,14 @@ import { Chip } from '@/components/chip';
 import { Icon } from '@/components/icon';
 import { TextField } from '@/components/text-field';
 import { TimePickerSheet } from '@/components/time-picker-sheet';
-import { createHabit, deleteHabit, getHabit, updateHabit, type HabitInput } from '@/db/habits';
+import { createHabit, deleteHabit, getHabit, setHabitArchived, updateHabit, type HabitInput } from '@/db/habits';
+import { UNIT_SUGGESTIONS } from '@/features/habits/amount';
 import { HabitIcon } from '@/features/habits/habit-card';
-import { HABIT_COLORS, HABIT_COLOR_KEYS, HABIT_ICONS, habitColor } from '@/features/habits/palette';
-import { requestPermission } from '@/features/habits/reminders';
+import { HABIT_ICONS } from '@/features/habits/icons';
+import { notificationsSupported, requestPermission } from '@/features/reminders/reminders';
+import { EVERY_DAY } from '@/features/habits/streak';
+import { WEEKDAYS_SHORT } from '@/lib/dates';
+import { PALETTE, PALETTE_KEYS, paletteColor } from '@/theme/palette';
 import { radius, spacing, withAlpha } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
@@ -32,10 +36,15 @@ export default function HabitEditScreen() {
   const [form, setForm] = useState<HabitInput>({
     name: '',
     icon: HABIT_ICONS[0],
-    color: HABIT_COLOR_KEYS[0],
+    color: PALETTE_KEYS[0],
     target_per_day: 1,
+    unit: null,
     reminder_time: null,
+    days_mask: EVERY_DAY,
   });
+  // Cel nawyku ilościowego jako tekst z pola (np. „10000”).
+  const [amountText, setAmountText] = useState('');
+  const [archived, setArchived] = useState(false);
   const [loaded, setLoaded] = useState(isNew);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
 
@@ -51,19 +60,36 @@ export default function HabitEditScreen() {
         icon: habit.icon,
         color: habit.color,
         target_per_day: habit.target_per_day,
+        unit: habit.unit,
         reminder_time: habit.reminder_time,
+        days_mask: habit.days_mask,
       });
+      if (habit.unit) setAmountText(String(habit.target_per_day));
+      setArchived(habit.archived === 1);
       setLoaded(true);
     });
   }, [db, isNew, habitId]);
 
   const update = (patch: Partial<HabitInput>) => setForm((current) => ({ ...current, ...patch }));
-  const canSave = loaded && form.name.trim().length > 0;
-  const color = habitColor(form.color, dark);
+  const isAmount = form.unit !== null;
+  const amountTarget = /^\d+$/.test(amountText) ? Number(amountText) : 0;
+  const amountValid = !isAmount || (amountTarget >= 1 && amountTarget <= 1_000_000 && form.unit!.trim().length > 0);
+  const canSave = loaded && form.name.trim().length > 0 && amountValid;
+
+  // Licznik ↔ ilość. Licznik ma cel 1–5, więc przy powrocie z ilości przycinamy go.
+  const setGoalType = (amount: boolean) =>
+    update(
+      amount
+        ? { unit: form.unit ?? '' }
+        : { unit: null, target_per_day: Math.min(Math.max(form.target_per_day, 1), 5) },
+    );
+  const color = paletteColor(form.color, dark);
 
   const save = async () => {
     if (!canSave) return;
-    const input = { ...form, name: form.name.trim() };
+    const input = isAmount
+      ? { ...form, name: form.name.trim(), unit: form.unit!.trim(), target_per_day: amountTarget }
+      : { ...form, name: form.name.trim() };
     if (isNew) {
       await createHabit(db, input);
     } else {
@@ -84,13 +110,23 @@ export default function HabitEditScreen() {
           { text: 'Otwórz ustawienia', onPress: () => Linking.openSettings() },
         ],
       );
-    } else if (permission === 'unavailable') {
-      Alert.alert('Powiadomienia niedostępne', 'Ta wersja aplikacji nie obsługuje powiadomień.');
     }
+    // 'unavailable' (Expo Go): godzina się zapisuje, a informacja jest pod sekcją przypomnienia.
+  };
+
+  // Ostatniego dnia nie da się odznaczyć — nawyk musi mieć przynajmniej jeden dzień.
+  const toggleDay = (index: number) => {
+    const mask = form.days_mask ^ (1 << index);
+    if (mask !== 0) update({ days_mask: mask });
+  };
+
+  const toggleArchived = async () => {
+    await setHabitArchived(db, habitId, !archived);
+    router.back();
   };
 
   const confirmDelete = () => {
-    Alert.alert('Usunąć nawyk?', 'Cała historia odhaczeń tego nawyku też zostanie usunięta.', [
+    Alert.alert('Usunąć nawyk?', 'Cała historia odhaczeń tego nawyku też zostanie usunięta. Jeśli chcesz ją zachować, zarchiwizuj nawyk.', [
       { text: 'Anuluj', style: 'cancel' },
       {
         text: 'Usuń',
@@ -142,15 +178,77 @@ export default function HabitEditScreen() {
                 Cel dzienny
               </AppText>
               <View style={styles.row}>
-                {TARGETS.map((target) => (
+                <Chip label="Licznik (1–5×)" selected={!isAmount} onPress={() => setGoalType(false)} />
+                <Chip label="Ilość" selected={isAmount} onPress={() => setGoalType(true)} />
+              </View>
+              {isAmount ? (
+                <>
+                  <View style={styles.amountRow}>
+                    <View style={styles.flex}>
+                      <TextField
+                        value={amountText}
+                        onChangeText={(text) => setAmountText(text.replace(/\D/g, ''))}
+                        placeholder="np. 10000"
+                        keyboardType="number-pad"
+                        maxLength={7}
+                      />
+                    </View>
+                    <View style={styles.flex}>
+                      <TextField
+                        value={form.unit ?? ''}
+                        onChangeText={(unit) => update({ unit })}
+                        placeholder="jednostka"
+                        autoCapitalize="none"
+                        maxLength={16}
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.row}>
+                    {UNIT_SUGGESTIONS.map((unit) => (
+                      <Chip key={unit} label={unit} selected={form.unit === unit} onPress={() => update({ unit })} />
+                    ))}
+                  </View>
+                  <AppText variant="caption" tone="textMuted">
+                    Stuknięcie w nawyk otworzy okienko, w którym dodasz ilość (np. +500 kroków).
+                  </AppText>
+                </>
+              ) : (
+                <View style={styles.row}>
+                  {TARGETS.map((target) => (
+                    <Chip
+                      key={target}
+                      label={`${target}×`}
+                      selected={form.target_per_day === target}
+                      onPress={() => update({ target_per_day: target })}
+                    />
+                  ))}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.section}>
+              <AppText variant="label" tone="textSecondary">
+                Dni tygodnia
+              </AppText>
+              <View style={styles.row}>
+                {WEEKDAYS_SHORT.map((name, index) => (
                   <Chip
-                    key={target}
-                    label={`${target}×`}
-                    selected={form.target_per_day === target}
-                    onPress={() => update({ target_per_day: target })}
+                    key={name}
+                    label={name}
+                    selected={((form.days_mask >> index) & 1) === 1}
+                    onPress={() => toggleDay(index)}
                   />
                 ))}
               </View>
+              <View style={styles.row}>
+                <Chip label="Codziennie" selected={form.days_mask === EVERY_DAY} onPress={() => update({ days_mask: EVERY_DAY })} />
+                <Chip label="Dni robocze" selected={form.days_mask === 0b0011111} onPress={() => update({ days_mask: 0b0011111 })} />
+              </View>
+              {form.days_mask !== EVERY_DAY ? (
+                <AppText variant="caption" tone="textMuted">
+                  Pozostałe dni nie przerywają serii, a przypomnienia przychodzą tylko w wybrane dni.
+                </AppText>
+              ) : null}
             </View>
 
             <View style={styles.section}>
@@ -164,7 +262,7 @@ export default function HabitEditScreen() {
                   onPress={() => update({ reminder_time: null })}
                 />
                 <Chip
-                  label={form.reminder_time ? `Codziennie o ${form.reminder_time}` : 'Ustaw godzinę'}
+                  label={form.reminder_time ? `Godzina ${form.reminder_time}` : 'Ustaw godzinę'}
                   icon="notifications"
                   selected={form.reminder_time !== null}
                   onPress={() => setTimePickerOpen(true)}
@@ -172,7 +270,9 @@ export default function HabitEditScreen() {
               </View>
               {form.reminder_time ? (
                 <AppText variant="caption" tone="textMuted">
-                  Jeśli wykonasz nawyk wcześniej, tego dnia przypomnienie się nie pojawi.
+                  {notificationsSupported
+                    ? 'Jeśli wykonasz nawyk wcześniej, tego dnia przypomnienie się nie pojawi.'
+                    : 'W Expo Go powiadomienia nie działają — przypomnienie zacznie przychodzić po zainstalowaniu aplikacji (APK).'}
                 </AppText>
               ) : null}
             </View>
@@ -182,7 +282,7 @@ export default function HabitEditScreen() {
                 Kolor
               </AppText>
               <View style={styles.row}>
-                {HABIT_COLOR_KEYS.map((key) => {
+                {PALETTE_KEYS.map((key) => {
                   const selected = form.color === key;
                   return (
                     <Pressable
@@ -190,8 +290,8 @@ export default function HabitEditScreen() {
                       onPress={() => update({ color: key })}
                       accessibilityRole="button"
                       accessibilityState={{ selected }}
-                      accessibilityLabel={HABIT_COLORS[key].label}
-                      style={[styles.swatch, { backgroundColor: habitColor(key, dark) }]}>
+                      accessibilityLabel={PALETTE[key].label}
+                      style={[styles.swatch, { backgroundColor: paletteColor(key, dark) }]}>
                       {selected ? <Icon name="check" size={20} color="#FFFFFF" /> : null}
                     </Pressable>
                   );
@@ -225,7 +325,15 @@ export default function HabitEditScreen() {
             </View>
 
             {!isNew ? (
-              <Button label="Usuń nawyk" variant="danger" icon="delete" onPress={confirmDelete} />
+              <View style={styles.section}>
+                <Button
+                  label={archived ? 'Przywróć z archiwum' : 'Archiwizuj'}
+                  variant="secondary"
+                  icon={archived ? 'unarchive' : 'archive'}
+                  onPress={toggleArchived}
+                />
+                <Button label="Usuń nawyk" variant="danger" icon="delete" onPress={confirmDelete} />
+              </View>
             ) : null}
           </>
         ) : null}
@@ -245,6 +353,8 @@ export default function HabitEditScreen() {
 const styles = StyleSheet.create({
   content: { gap: spacing.xl, padding: spacing.lg },
   preview: { alignItems: 'center' },
+  amountRow: { flexDirection: 'row', gap: spacing.sm },
+  flex: { flex: 1 },
   section: { gap: spacing.sm },
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   swatch: {

@@ -2,9 +2,11 @@
 
 Osobisty tracker codziennej rutyny na Androida (Expo).
 
-- **Dziś** — kalendarz miesiąca z kropkami z modułów, agenda dnia, dziennik (nastrój 1–5 + tekst)
-- **Nawyki** — cele 1–5× dziennie, serie, tygodniowa heat-mapa
-- **Zadania** — priorytety, terminy, filtry Otwarte / Na dziś / Zrobione
+- **Dziś** — kalendarz miesiąca z kropkami z modułów, agenda dnia, dziennik (nastrój 1–5 + tekst),
+  statystyki miesiąca (📈) i ustawienia (⚙️)
+- **Nawyki** — cele 1–5× dziennie, wybrane dni tygodnia, serie, tygodniowa heat-mapa, przypomnienia,
+  archiwum i własna kolejność
+- **Zadania** — priorytety, terminy, zadania cykliczne, filtry Otwarte / Na dziś / Zrobione
 - **Aktywność** — treningi: spacer, bieg, rower, siłownia, pływanie, inne
 - **Notatki** — szukajka, przypinanie, autozapis
 

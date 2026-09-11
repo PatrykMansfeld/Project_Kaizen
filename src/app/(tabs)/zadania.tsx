@@ -10,12 +10,14 @@ import { Screen } from '@/components/screen';
 import {
   TASK_COUNTS_SQL,
   TASK_LIST_SQL,
-  setTaskDone,
+  TASK_TABLES,
+  toggleTask,
   type Task,
   type TaskCounts,
   type TaskFilter,
 } from '@/db/tasks';
 import { useQuery } from '@/db/use-query';
+import { TagFilter, useTags } from '@/features/tags/tags';
 import { TaskRow } from '@/features/tasks/task-row';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
@@ -38,10 +40,12 @@ export default function TasksScreen() {
   const today = useToday();
   const { colors } = useTheme();
   const [filter, setFilter] = useState<TaskFilter>('open');
+  const [tag, setTag] = useState<number | null>(null);
+  const { byId: tagsById } = useTags();
 
-  const params = { $today: today };
-  const { rows: tasks, loaded } = useQuery<Task>(TASK_LIST_SQL[filter], params, ['tasks']);
-  const { rows: countRows } = useQuery<TaskCounts>(TASK_COUNTS_SQL, params, ['tasks']);
+  const params = { $today: today, $tag: tag };
+  const { rows: tasks, loaded } = useQuery<Task>(TASK_LIST_SQL[filter], params, [...TASK_TABLES]);
+  const { rows: countRows } = useQuery<TaskCounts>(TASK_COUNTS_SQL, params, [...TASK_TABLES]);
   const counts = countRows[0];
 
   return (
@@ -65,6 +69,7 @@ export default function TasksScreen() {
           />
         ))}
       </View>
+      <TagFilter selected={tag} onChange={setTag} />
 
       <FlatList
         data={tasks}
@@ -73,8 +78,9 @@ export default function TasksScreen() {
           <TaskRow
             task={item}
             today={today}
+            tagsById={tagsById}
             onPress={() => router.push({ pathname: '/zadanie/[id]', params: { id: String(item.id) } })}
-            onToggle={() => setTaskDone(db, item.id, item.completed_at === null)}
+            onToggle={() => toggleTask(db, item, today)}
           />
         )}
         ItemSeparatorComponent={Separator}

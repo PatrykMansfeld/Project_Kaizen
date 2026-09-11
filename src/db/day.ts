@@ -1,4 +1,5 @@
 import type { Habit } from '@/db/habits';
+import { TASK_COLUMNS } from '@/db/tasks';
 import { WORKOUT_COLUMNS } from '@/db/workouts';
 
 export type DotKind = 'activity' | 'habits' | 'tasks' | 'journal';
@@ -23,9 +24,9 @@ export const DAY_HABITS_SQL = `
 
 /** Zadania z terminem na ten dzień; dla dzisiaj ($withOverdue = 1) także otwarte zaległe. */
 export const DAY_TASKS_SQL = `
-  SELECT * FROM tasks
+  SELECT ${TASK_COLUMNS} FROM tasks
   WHERE due_date = $date OR ($withOverdue = 1 AND completed_at IS NULL AND due_date < $date)
-  ORDER BY completed_at IS NOT NULL, due_date, priority DESC, id`;
+  ORDER BY completed_at IS NOT NULL, due_date, due_time IS NULL, due_time, priority DESC, id`;
 
 export const DAY_WORKOUTS_SQL = `SELECT ${WORKOUT_COLUMNS} FROM workouts WHERE date = $date ORDER BY id`;
 

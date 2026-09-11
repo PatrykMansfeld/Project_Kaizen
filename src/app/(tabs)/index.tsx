@@ -9,8 +9,11 @@ import { Icon } from '@/components/icon';
 import { MonthCalendar } from '@/components/month-calendar';
 import { Screen } from '@/components/screen';
 import { CALENDAR_DOTS_SQL, type DotKind } from '@/db/day';
+import { GOALS_SQL, type Goal } from '@/db/goals';
+import { SETTING_SQL } from '@/db/settings';
 import { useQuery } from '@/db/use-query';
 import { DayAgenda } from '@/features/day/day-agenda';
+import { GoalCard } from '@/features/goals/goal-card';
 import { formatDayLong, monthOf, monthWeeks, relativeDayLabel, type DateKey } from '@/lib/dates';
 import { useToday } from '@/lib/use-today';
 import { radius, spacing } from '@/theme/theme';
@@ -49,6 +52,12 @@ export default function TodayScreen() {
     );
   }
 
+  // Trwające cele (najbliższy termin najpierw) i czy dzisiejszy dzień jest już podsumowany.
+  const { rows: goals } = useQuery<Goal>(GOALS_SQL, { $today: today }, ['goals']);
+  const activeGoals = goals.filter((goal) => goal.start_date <= today && goal.end_date >= today);
+  const { rows: reviewRows } = useQuery<{ value: string }>(SETTING_SQL, { $key: 'last_review_date' }, ['settings']);
+  const reviewedToday = reviewRows[0]?.value === today;
+
   const todayMonth = monthOf(today);
   const showingToday = selected === today && month.year === todayMonth.year && month.month === todayMonth.month;
   const goToToday = () => {
@@ -72,6 +81,8 @@ export default function TodayScreen() {
       headerRight={
         <View style={styles.headerActions}>
           {showingToday ? null : <Chip label="Dziś" icon="today" selected={false} onPress={goToToday} />}
+          <IconButton icon="search" accessibilityLabel="Szukaj" onPress={() => router.push('/szukaj')} />
+          <IconButton icon="insights" accessibilityLabel="Statystyki" onPress={() => router.push('/statystyki')} />
           <IconButton icon="settings" accessibilityLabel="Ustawienia" onPress={() => router.push('/ustawienia')} />
         </View>
       }>
@@ -96,6 +107,25 @@ export default function TodayScreen() {
             ))}
           </View>
         </View>
+
+        <View style={styles.quickActions}>
+          <Chip label="Cele" icon="sports_score" selected={false} onPress={() => router.push('/cele')} />
+          <Chip
+            label={reviewedToday ? 'Dzień podsumowany' : 'Podsumuj dzień'}
+            icon={reviewedToday ? 'done_all' : 'bedtime'}
+            selected={reviewedToday}
+            onPress={() => router.push('/podsumowanie')}
+          />
+        </View>
+        {activeGoals.slice(0, 2).map((goal) => (
+          <GoalCard
+            key={goal.id}
+            goal={goal}
+            today={today}
+            compact
+            onPress={() => router.push({ pathname: '/cel/[id]', params: { id: String(goal.id) } })}
+          />
+        ))}
 
         <View style={styles.agendaHeader}>
           <View style={styles.flex}>
@@ -129,6 +159,7 @@ const styles = StyleSheet.create({
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   legendDot: { width: 8, height: 8, borderRadius: radius.full },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  quickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   agendaHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   flex: { flex: 1 },
   openDay: { flexDirection: 'row', alignItems: 'center' },

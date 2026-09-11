@@ -1,13 +1,16 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { addDatabaseChangeListener, useSQLiteContext } from 'expo-sqlite';
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
 
-import { getNotifications, syncHabitReminders } from './reminders';
+import { getNotifications, syncReminders } from './reminders';
+
+/** Tabele, których zmiana może zmienić plan przypomnień. */
+const WATCHED = new Set(['habits', 'habit_logs', 'tasks', 'settings']);
 
 /**
- * Działa w tle przez cały czas życia aplikacji: odświeża plan przypomnień po zmianach nawyków
- * (także odhaczeniu — dzisiejsze przypomnienie znika) i po powrocie do aplikacji.
+ * Działa w tle przez cały czas życia aplikacji: odświeża plan przypomnień po zmianach
+ * (np. odhaczenie nawyku usuwa dzisiejsze przypomnienie) i po powrocie do aplikacji.
  */
 export function ReminderSync() {
   const db = useSQLiteContext();
@@ -23,22 +26,23 @@ export function ReminderSync() {
       }),
     });
 
-    void syncHabitReminders(db);
+    void syncReminders(db);
 
     let timer: ReturnType<typeof setTimeout> | undefined;
     const dbSubscription = addDatabaseChangeListener((event) => {
-      if (event.tableName !== 'habits' && event.tableName !== 'habit_logs') return;
+      if (!WATCHED.has(event.tableName)) return;
       clearTimeout(timer);
-      timer = setTimeout(() => void syncHabitReminders(db), 1000);
+      timer = setTimeout(() => void syncReminders(db), 1000);
     });
 
     const appSubscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void syncHabitReminders(db);
+      if (state === 'active') void syncReminders(db);
     });
 
-    // Stuknięcie w przypomnienie (gdy aplikacja działa w tle) otwiera zakładkę Nawyki.
+    // Stuknięcie w powiadomienie (gdy aplikacja działa w tle) otwiera właściwy ekran.
     const responseSubscription = Notifications?.addNotificationResponseReceivedListener((response) => {
-      if (response.notification.request.content.data?.url === '/nawyki') router.navigate('/nawyki');
+      const url = response.notification.request.content.data?.url;
+      if (typeof url === 'string' && url.startsWith('/')) router.push(url as Href);
     });
 
     return () => {

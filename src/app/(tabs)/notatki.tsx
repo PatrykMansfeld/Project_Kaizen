@@ -8,25 +8,29 @@ import { EmptyState } from '@/components/empty-state';
 import { Screen } from '@/components/screen';
 import { SearchField } from '@/components/search-field';
 import { NOTES_SQL, type Note } from '@/db/notes';
+import { parseTagIds } from '@/db/tags';
 import { useQuery } from '@/db/use-query';
 import { NoteCard } from '@/features/notes/note-card';
+import { TagFilter, useTags } from '@/features/tags/tags';
+import { matchesSearch, normalizeForSearch } from '@/lib/search';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
-
-// Szukamy w JS, a nie przez LIKE — SQLite ignoruje wielkość liter tylko w ASCII („Ł” ≠ „ł”).
-function matches(note: Note, query: string) {
-  return `${note.title}\n${note.body}`.toLowerCase().includes(query);
-}
 
 export default function NotesScreen() {
   const today = useToday();
   const { colors } = useTheme();
   const [search, setSearch] = useState('');
-  const { rows: notes, loaded } = useQuery<Note>(NOTES_SQL, [], ['notes']);
+  const [tag, setTag] = useState<number | null>(null);
+  const { byId: tagsById } = useTags();
+  const { rows: notes, loaded } = useQuery<Note>(NOTES_SQL, [], ['notes', 'note_tags', 'tags']);
 
-  const query = search.trim().toLowerCase();
-  const visible = query ? notes.filter((note) => matches(note, query)) : notes;
+  const query = normalizeForSearch(search.trim());
+  const visible = notes.filter(
+    (note) =>
+      (!query || matchesSearch(`${note.title}\n${note.body}`, query)) &&
+      (tag === null || parseTagIds(note.tag_ids).includes(tag)),
+  );
   const pinned = visible.filter((note) => note.pinned);
   const others = visible.filter((note) => !note.pinned);
   // Nagłówki sekcji tylko wtedy, gdy są przypięte notatki.
@@ -53,11 +57,14 @@ export default function NotesScreen() {
           <SearchField value={search} onChangeText={setSearch} placeholder="Szukaj w notatkach" />
         </View>
       ) : null}
+      <TagFilter selected={tag} onChange={setTag} />
 
       <SectionList
         sections={sections}
         keyExtractor={(note) => String(note.id)}
-        renderItem={({ item }) => <NoteCard note={item} today={today} onPress={() => openNote(item.id)} />}
+        renderItem={({ item }) => (
+          <NoteCard note={item} today={today} tagsById={tagsById} onPress={() => openNote(item.id)} />
+        )}
         renderSectionHeader={({ section }) =>
           section.title ? (
             <AppText variant="label" tone="textSecondary" style={styles.sectionHeader}>
@@ -70,12 +77,16 @@ export default function NotesScreen() {
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          !loaded ? null : query ? (
+          !loaded ? null : query || tag !== null ? (
             <EmptyState
               icon="search"
               color={colors.notes}
               title="Nic nie znaleziono"
-              description={`Żadna notatka nie zawiera „${search.trim()}”.`}
+              description={
+                query
+                  ? `Żadna notatka nie zawiera „${search.trim()}”.`
+                  : `Brak notatek z tagiem #${tagsById.get(tag!)?.name ?? ''}.`
+              }
             />
           ) : (
             <EmptyState
