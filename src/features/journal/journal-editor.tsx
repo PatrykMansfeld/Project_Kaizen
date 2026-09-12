@@ -1,9 +1,11 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { EmojiScale } from '@/components/emoji-scale';
 import { Icon } from '@/components/icon';
+import { Section } from '@/components/section';
 import { getJournalEntry, saveJournalEntry, type JournalContent } from '@/db/journal';
 import { formatTimestamp, type DateKey } from '@/lib/dates';
 import { useAutosave } from '@/lib/use-autosave';
@@ -64,38 +66,16 @@ export function JournalEditor({ date, compact = false }: Props) {
 
   return (
     <View style={[styles.editor, !compact && styles.fill]}>
-      <View style={styles.section}>
-        <AppText variant="label" tone="textSecondary">
-          Nastrój
-        </AppText>
-        <View style={styles.moods}>
-          {MOODS.map((mood) => {
-            const selected = entry.mood === mood.value;
-            return (
-              <Pressable
-                key={mood.value}
-                // Ponowne stuknięcie odznacza nastrój.
-                onPress={() => change({ mood: selected ? null : mood.value }, true)}
-                accessibilityRole="button"
-                accessibilityState={{ selected }}
-                accessibilityLabel={mood.label}
-                style={[
-                  styles.mood,
-                  selected
-                    ? { backgroundColor: withAlpha(colors.journal, 0.18), borderColor: colors.journal }
-                    : { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}>
-                <Text style={[styles.moodEmoji, { opacity: entry.mood === null || selected ? 1 : 0.45 }]}>
-                  {mood.emoji}
-                </Text>
-                <AppText variant="caption" tone={selected ? 'text' : 'textSecondary'} numberOfLines={1}>
-                  {mood.label}
-                </AppText>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
+      <Section title="Nastrój">
+        {/* Ponowne stuknięcie odznacza nastrój; zmiana zapisuje się od razu. */}
+        <EmojiScale
+          options={MOODS}
+          value={entry.mood}
+          onChange={(mood) => change({ mood }, true)}
+          color={colors.journal}
+          dimUnselected
+        />
+      </Section>
 
       <View style={[styles.prompt, { backgroundColor: withAlpha(colors.journal, 0.08) }]}>
         <Icon name="lightbulb" size={18} color={colors.journal} />
@@ -134,17 +114,6 @@ const styles = StyleSheet.create({
   editor: { gap: spacing.md, paddingBottom: spacing.md },
   fill: { flex: 1 },
   flex: { flex: 1 },
-  section: { gap: spacing.sm },
-  moods: { flexDirection: 'row', gap: spacing.sm },
-  mood: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 2,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-  },
-  moodEmoji: { fontSize: 28 },
   prompt: {
     flexDirection: 'row',
     alignItems: 'center',

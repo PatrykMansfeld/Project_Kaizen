@@ -3,10 +3,12 @@ import type * as NotificationsModule from 'expo-notifications';
 import type { SQLiteDatabase } from 'expo-sqlite';
 import { Platform } from 'react-native';
 
+import { parseTimes } from '@/db/meds';
 import { getSetting } from '@/db/settings';
+import { formatMoney } from '@/features/finance/money';
 import { formatAmount } from '@/features/habits/amount';
 import { isScheduled } from '@/features/habits/streak';
-import { addDays, fromDateKey, todayKey, type DateKey } from '@/lib/dates';
+import { addDays, formatDayShort, fromDateKey, startOfWeek, todayKey, type DateKey } from '@/lib/dates';
 
 /**
  * Lokalne powiadomienia: przypomnienia o nawykach, o zadaniach z godziną i o wieczornym podsumowaniu.
@@ -22,17 +24,31 @@ const CHANNELS = {
   habits: 'Przypomnienia o nawykach',
   tasks: 'Przypomnienia o zadaniach',
   review: 'Podsumowanie dnia',
+  meds: 'Leki i suplementy',
+  bills: 'Płatności',
+  home: 'Dom',
 } as const;
+
+/** Dawki leków planujemy na krócej — każda godzina każdego dnia to osobne powiadomienie. */
+const MEDS_DAYS_AHEAD = 7;
+/** Obowiązki i płatności — w oknie takim jak zadania. */
+const DUE_DAYS_AHEAD = 60;
+/** Koniec gwarancji — przypomnienie tyle dni wcześniej. */
+const WARRANTY_NOTICE_DAYS = 30;
 type ChannelId = keyof typeof CHANNELS;
 
 /** Każde zaplanowane przez nas powiadomienie ma identyfikator z jednym z tych przedrostków. */
-const PREFIXES = ['habit:', 'task:', 'review:'];
+const PREFIXES = ['habit:', 'task:', 'review:', 'weekly:', 'med:', 'bill:', 'chore:', 'warranty:'];
 
 /**
  * W Expo Go na Androidzie sam import expo-notifications rzuca błąd (push usunięto z Expo Go w SDK 53),
  * więc tam przypomnienia są wyłączone — działają dopiero w zbudowanej aplikacji (APK / development build).
  */
 export const notificationsSupported = !(Platform.OS === 'android' && isRunningInExpoGo());
+
+/** Podpis pod ustawionym przypomnieniem, gdy powiadomienia nie działają (Expo Go). */
+export const EXPO_GO_NOTICE =
+  'W Expo Go powiadomienia nie działają — przypomnienie zacznie przychodzić po zainstalowaniu aplikacji (APK).';
 
 let notificationsModule: typeof NotificationsModule | null | undefined;
 
@@ -109,13 +125,17 @@ async function planHabits(db: SQLiteDatabase, today: DateKey, now: number): Prom
     unit: string | null;
     reminder_time: string;
     days_mask: number;
+    weekly_target: number | null;
     today_count: number;
+    week_done: number;
   }>(
-    `SELECT h.id, h.name, h.icon, h.target_per_day, h.unit, h.reminder_time, h.days_mask,
-       COALESCE(l.count, 0) AS today_count
+    `SELECT h.id, h.name, h.icon, h.target_per_day, h.unit, h.reminder_time, h.days_mask, h.weekly_target,
+       COALESCE(l.count, 0) AS today_count,
+       (SELECT COUNT(*) FROM habit_logs w
+        WHERE w.habit_id = h.id AND w.count >= h.target_per_day AND w.date BETWEEN $weekStart AND $weekEnd) AS week_done
      FROM habits h LEFT JOIN habit_logs l ON l.habit_id = h.id AND l.date = $today
      WHERE h.archived = 0 AND h.reminder_time IS NOT NULL`,
-    { $today: today },
+    { $today: today, $weekStart: startOfWeek(today), $weekEnd: addDays(startOfWeek(today), 6) },
   );
   const planned: Planned[] = [];
   for (const habit of habits) {
@@ -123,6 +143,8 @@ async function planHabits(db: SQLiteDatabase, today: DateKey, now: number): Prom
     for (let offset = 0; offset < DAYS_AHEAD; offset++) {
       const day = addDays(today, offset);
       if (!isScheduled(habit.days_mask, day)) continue;
+      // „X razy w tygodniu”: po osiągnięciu celu do końca bieżącego tygodnia bez przypomnień.
+      if (habit.weekly_target && habit.week_done >= habit.weekly_target && startOfWeek(day) === startOfWeek(today)) continue;
       // Dziś już wykonane — dzisiejsze przypomnienie odpada.
       if (offset === 0 && habit.today_count >= habit.target_per_day) continue;
       const at = atTime(day, habit.reminder_time);
@@ -136,7 +158,7 @@ async function planHabits(db: SQLiteDatabase, today: DateKey, now: number): Prom
           : habit.target_per_day > 1
             ? `Cel na dziś: ${habit.target_per_day}×`
             : 'Pora na dzisiejszy nawyk.',
-        url: '/nawyki',
+        url: '/modul/nawyki',
         channel: 'habits',
       });
     }
@@ -187,6 +209,130 @@ async function planReview(db: SQLiteDatabase, today: DateKey, now: number): Prom
   return planned;
 }
 
+/** Przegląd tygodnia: ustawiony dzień tygodnia i godzina, najbliższe 4 tygodnie; zrobiony tydzień pomijamy. */
+async function planWeeklyReview(db: SQLiteDatabase, today: DateKey, now: number): Promise<Planned[]> {
+  const setting = await getSetting(db, 'weekly_review_time');
+  const match = setting?.match(/^([0-6]) (\d{2}:\d{2})$/);
+  if (!match) return [];
+  const weekday = Number(match[1]);
+  const time = match[2];
+  const done = new Set(
+    (await db.getAllAsync<{ week_start: DateKey }>('SELECT week_start FROM weekly_reviews WHERE week_start >= ?', addDays(startOfWeek(today), -7))).map(
+      (row) => row.week_start,
+    ),
+  );
+  const planned: Planned[] = [];
+  for (let week = 0; week < 4; week++) {
+    const day = addDays(startOfWeek(today), week * 7 + weekday);
+    // Przegląd dotyczy tygodnia, w którym leży przypomnienie (od piątku) albo poprzedniego.
+    const reviewedWeek = weekday >= 4 ? startOfWeek(day) : addDays(startOfWeek(day), -7);
+    if (done.has(reviewedWeek)) continue;
+    const at = atTime(day, time);
+    if (at.getTime() <= now) continue;
+    planned.push({
+      id: `weekly:${day}:${time}`,
+      at,
+      title: '📅 Przegląd tygodnia',
+      body: 'Co poszło dobrze, co poprawić i jakie 3 priorytety na kolejny tydzień?',
+      url: '/przeglad-tygodnia',
+      channel: 'review',
+    });
+  }
+  return planned;
+}
+
+/** Dawki leków z harmonogramem (bez już odhaczonych). */
+async function planMeds(db: SQLiteDatabase, today: DateKey, now: number): Promise<Planned[]> {
+  const meds = await db.getAllAsync<{ id: number; name: string; dose: string; icon: string; times: string; days_mask: number }>(
+    `SELECT id, name, dose, icon, times, days_mask FROM medications WHERE active = 1 AND reminders = 1 AND times <> ''`,
+  );
+  const taken = new Set(
+    (
+      await db.getAllAsync<{ medication_id: number; date: DateKey; time: string }>(
+        'SELECT medication_id, date, time FROM medication_logs WHERE date >= ?',
+        today,
+      )
+    ).map((log) => `${log.medication_id}|${log.date}|${log.time}`),
+  );
+  const planned: Planned[] = [];
+  for (const med of meds) {
+    const contentHash = hash(`${med.name}|${med.dose}|${med.icon}`);
+    for (let offset = 0; offset < MEDS_DAYS_AHEAD; offset++) {
+      const day = addDays(today, offset);
+      if (!isScheduled(med.days_mask, day)) continue;
+      for (const time of parseTimes(med.times)) {
+        if (taken.has(`${med.id}|${day}|${time}`)) continue;
+        const at = atTime(day, time);
+        if (at.getTime() <= now) continue;
+        planned.push({
+          id: `med:${med.id}:${day}:${time}:${contentHash}`,
+          at,
+          title: `${med.icon} ${med.name}`,
+          body: med.dose ? `Pora na dawkę: ${med.dose}` : 'Pora na dawkę.',
+          url: '/modul/leki',
+          channel: 'meds',
+        });
+      }
+    }
+  }
+  return planned;
+}
+
+/** Stałe opłaty: X dni przed terminem o 9:00. */
+async function planBills(db: SQLiteDatabase, today: DateKey, now: number): Promise<Planned[]> {
+  const bills = await db.getAllAsync<{ id: number; name: string; icon: string; amount: number; next_due: DateKey; remind_days_before: number }>(
+    `SELECT id, name, icon, amount, next_due, remind_days_before FROM recurring_bills
+     WHERE active = 1 AND remind_days_before IS NOT NULL AND next_due <= $until`,
+    { $until: addDays(today, DUE_DAYS_AHEAD) },
+  );
+  return bills
+    .map((bill) => ({
+      id: `bill:${bill.id}:${bill.next_due}:${bill.remind_days_before}:${hash(`${bill.name}|${bill.amount}`)}`,
+      at: atTime(addDays(bill.next_due, -bill.remind_days_before), '09:00'),
+      title: `${bill.icon} ${bill.name}: ${formatMoney(bill.amount)}`,
+      body: bill.remind_days_before === 0 ? 'Termin płatności dziś.' : `Termin płatności: ${formatDayShort(bill.next_due, today)}.`,
+      url: '/modul/oplaty',
+      channel: 'bills' as const,
+    }))
+    .filter((planned) => planned.at.getTime() > now);
+}
+
+/** Obowiązki domowe z przypomnieniem: w dniu terminu o 9:00. */
+async function planChores(db: SQLiteDatabase, today: DateKey, now: number): Promise<Planned[]> {
+  const chores = await db.getAllAsync<{ id: number; name: string; icon: string; next_due: DateKey }>(
+    'SELECT id, name, icon, next_due FROM home_chores WHERE remind = 1 AND next_due BETWEEN $today AND $until',
+    { $today: today, $until: addDays(today, DUE_DAYS_AHEAD) },
+  );
+  return chores
+    .map((chore) => ({
+      id: `chore:${chore.id}:${chore.next_due}:${hash(chore.name)}`,
+      at: atTime(chore.next_due, '09:00'),
+      title: `${chore.icon} ${chore.name}`,
+      body: 'Dziś w planie domowych obowiązków.',
+      url: '/modul/dom',
+      channel: 'home' as const,
+    }))
+    .filter((planned) => planned.at.getTime() > now);
+}
+
+/** Gwarancje: miesiąc przed końcem o 10:00. */
+async function planWarranties(db: SQLiteDatabase, today: DateKey, now: number): Promise<Planned[]> {
+  const warranties = await db.getAllAsync<{ id: number; name: string; expires_on: DateKey }>(
+    'SELECT id, name, expires_on FROM warranties WHERE expires_on > $today',
+    { $today: today },
+  );
+  return warranties
+    .map((warranty) => ({
+      id: `warranty:${warranty.id}:${warranty.expires_on}:${hash(warranty.name)}`,
+      at: atTime(addDays(warranty.expires_on, -WARRANTY_NOTICE_DAYS), '10:00'),
+      title: `🧾 Kończy się gwarancja: ${warranty.name}`,
+      body: `Ważna do ${formatDayShort(warranty.expires_on, today)} — sprawdź sprzęt, zanim minie termin.`,
+      url: '/modul/dom',
+      channel: 'home' as const,
+    }))
+    .filter((planned) => planned.at.getTime() > now);
+}
+
 async function sync(db: SQLiteDatabase) {
   const Notifications = getNotifications();
   if (!Notifications) return;
@@ -205,6 +351,11 @@ async function sync(db: SQLiteDatabase) {
       ...(await planHabits(db, today, now)),
       ...(await planTasks(db, today, now)),
       ...(await planReview(db, today, now)),
+      ...(await planWeeklyReview(db, today, now)),
+      ...(await planMeds(db, today, now)),
+      ...(await planBills(db, today, now)),
+      ...(await planChores(db, today, now)),
+      ...(await planWarranties(db, today, now)),
     ];
     for (const item of planned) wanted.set(item.id, item);
   }

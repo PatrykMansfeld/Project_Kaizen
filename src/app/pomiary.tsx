@@ -1,12 +1,14 @@
-import { Stack, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useState } from 'react';
-import { FlatList, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlatList, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/button';
-import { Chip } from '@/components/chip';
+import { Card } from '@/components/card';
+import { Chip, ChipRow } from '@/components/chip';
 import { EmptyState } from '@/components/empty-state';
+import { StackHeader, useListScreenStyle } from '@/components/screen';
+import { Separator } from '@/components/separator';
 import {
   MEASUREMENTS_SQL,
   MEASUREMENT_TYPES,
@@ -17,10 +19,10 @@ import {
 import { useQuery } from '@/db/use-query';
 import { StatRow, StatTile } from '@/features/stats/charts';
 import { LineChart } from '@/features/stats/line-chart';
-import { addDays, diffDays, formatDayShort, relativeDayLabel } from '@/lib/dates';
-import { formatDecimal } from '@/lib/format';
+import { addDays, diffDays, formatDayRelative, formatDayShort } from '@/lib/dates';
+import { formatDecimal, formatSigned } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
-import { radius, spacing } from '@/theme/theme';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 const RANGES = [
@@ -31,14 +33,13 @@ const RANGES = [
 
 /** „−1,2 kg”, „+0,5 cm” */
 function signed(value: number, unit: string) {
-  const sign = value > 0 ? '+' : value < 0 ? '−' : '±';
-  return `${sign}${formatDecimal(Math.abs(value), 1)} ${unit}`;
+  return formatSigned(value, (absolute) => `${formatDecimal(absolute, 1)} ${unit}`);
 }
 
 export default function MeasurementsScreen() {
   const today = useToday();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const listStyle = useListScreenStyle();
   const [type, setType] = useState<MeasurementType>('weight');
   const [range, setRange] = useState<number | null>(90);
   const [selected, setSelected] = useState<string | null>(null);
@@ -60,22 +61,17 @@ export default function MeasurementsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Pomiary ciała',
-          headerRight: () => (
-            <IconButton icon="add" accessibilityLabel="Nowy pomiar" onPress={() => openEntry('nowy')} />
-          ),
-        }}
+      <StackHeader
+        title="Pomiary ciała"
+        headerRight={<IconButton icon="add" accessibilityLabel="Nowy pomiar" onPress={() => openEntry('nowy')} />}
       />
       <FlatList
+        {...listStyle}
         data={entries}
         keyExtractor={(entry) => String(entry.id)}
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}
         ListHeaderComponent={
           <View style={styles.header}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+            <ChipRow scroll>
               {MEASUREMENT_TYPE_KEYS.map((key) => (
                 <Chip
                   key={key}
@@ -87,7 +83,7 @@ export default function MeasurementsScreen() {
                   }}
                 />
               ))}
-            </ScrollView>
+            </ChipRow>
 
             {latest ? (
               <>
@@ -95,7 +91,7 @@ export default function MeasurementsScreen() {
                   <StatTile
                     label="Obecnie"
                     value={`${formatDecimal(latest.value, 1)} ${unit}`}
-                    detail={relativeDayLabel(latest.date, today) ?? formatDayShort(latest.date, today)}
+                    detail={formatDayRelative(latest.date, today)}
                   />
                   <StatTile
                     label="Zmiana"
@@ -104,8 +100,8 @@ export default function MeasurementsScreen() {
                   />
                 </StatRow>
 
-                <View style={[styles.card, { backgroundColor: colors.surface }]}>
-                  <View style={styles.chips}>
+                <Card>
+                  <ChipRow>
                     {RANGES.map((option) => (
                       <Chip
                         key={option.label}
@@ -114,7 +110,7 @@ export default function MeasurementsScreen() {
                         onPress={() => setRange(option.days)}
                       />
                     ))}
-                  </View>
+                  </ChipRow>
                   <AppText variant="caption" tone="textSecondary">
                     {selectedEntry
                       ? `${formatDayShort(selectedEntry.date, today)}: ${formatDecimal(selectedEntry.value, 1)} ${unit}`
@@ -136,7 +132,7 @@ export default function MeasurementsScreen() {
                       Brak pomiarów w tym okresie.
                     </AppText>
                   )}
-                </View>
+                </Card>
 
                 <AppText variant="label" tone="textSecondary">
                   Historia
@@ -148,11 +144,8 @@ export default function MeasurementsScreen() {
         renderItem={({ item, index }) => {
           const previous = entries[index + 1];
           return (
-            <Pressable
-              onPress={() => openEntry(item.id)}
-              android_ripple={{ color: colors.border }}
-              style={[styles.row, { backgroundColor: colors.surface }]}>
-              <AppText style={styles.flex}>{relativeDayLabel(item.date, today) ?? formatDayShort(item.date, today)}</AppText>
+            <Card variant="row" onPress={() => openEntry(item.id)}>
+              <AppText style={styles.flex}>{formatDayRelative(item.date, today)}</AppText>
               {previous ? (
                 <AppText variant="caption" tone="textMuted">
                   {signed(item.value - previous.value, unit)}
@@ -161,7 +154,7 @@ export default function MeasurementsScreen() {
               <AppText variant="bodyStrong">
                 {formatDecimal(item.value, 1)} {unit}
               </AppText>
-            </Pressable>
+            </Card>
           );
         }}
         ItemSeparatorComponent={Separator}
@@ -180,24 +173,7 @@ export default function MeasurementsScreen() {
   );
 }
 
-function Separator() {
-  return <View style={styles.separator} />;
-}
-
 const styles = StyleSheet.create({
-  content: { flexGrow: 1, padding: spacing.lg },
   header: { gap: spacing.lg, paddingBottom: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  card: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.md },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
   flex: { flex: 1 },
-  separator: { height: spacing.sm },
 });

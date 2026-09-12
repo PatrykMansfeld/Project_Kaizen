@@ -1,33 +1,26 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Card } from '@/components/card';
 import { Icon } from '@/components/icon';
 import type { Note } from '@/db/notes';
 import { parseTagIds, type Tag } from '@/db/tags';
 import { TagBadges } from '@/features/tags/tags';
 import { formatTimestamp, type DateKey } from '@/lib/dates';
-import { radius, spacing } from '@/theme/theme';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
-/** Nagłówek i podgląd karty. Bez tytułu nagłówkiem jest pierwsza linia treści. */
-export function notePreview(note: Pick<Note, 'title' | 'body'>) {
-  const lines = note.body.split('\n').map((line) => line.trim()).filter(Boolean);
-  const title = note.title.trim();
-  if (title) return { headline: title, preview: lines.join(' ') };
-  return { headline: lines[0] ?? 'Bez tytułu', preview: lines.slice(1).join(' ') };
-}
+import { checklistProgress, notePreview } from './markdown';
 
 type Props = { note: Note; today: DateKey; onPress: () => void; tagsById?: Map<number, Tag> };
 
 export function NoteCard({ note, today, onPress, tagsById }: Props) {
   const { colors } = useTheme();
   const { headline, preview } = notePreview(note);
+  const checklist = checklistProgress(note.body);
 
   return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: colors.border }}
-      style={[styles.card, { backgroundColor: colors.surface }]}>
+    <Card onPress={onPress} style={styles.card}>
       <View style={styles.titleRow}>
         <AppText variant="bodyStrong" numberOfLines={1} style={styles.headline}>
           {headline}
@@ -41,20 +34,20 @@ export function NoteCard({ note, today, onPress, tagsById }: Props) {
       ) : null}
       {tagsById ? <TagBadges tagIds={parseTagIds(note.tag_ids)} byId={tagsById} /> : null}
       <AppText variant="caption" tone="textMuted">
-        {formatTimestamp(note.updated_at, today)}
+        {[
+          formatTimestamp(note.updated_at, today),
+          checklist.total ? `☑ ${checklist.done}/${checklist.total}` : null,
+          note.image_count ? `🖼 ${note.image_count}` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
       </AppText>
-    </Pressable>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    gap: spacing.xs,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
+  card: { gap: spacing.xs, paddingVertical: spacing.md },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   headline: { flex: 1 },
 });

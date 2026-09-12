@@ -1,15 +1,17 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { DatePickerSheet } from '@/components/date-picker-sheet';
+import { Chip, ChipRow } from '@/components/chip';
+import { DateChoice } from '@/components/date-choice';
+import { HeaderTextButton } from '@/components/header';
 import { Icon } from '@/components/icon';
 import { PromptSheet } from '@/components/prompt-sheet';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
 import { TextField } from '@/components/text-field';
 import { getLastSet, getWorkoutSets, replaceWorkoutSets, type Exercise } from '@/db/exercises';
 import { TEMPLATES_SQL, createTemplate, getTemplateSets, type WorkoutTemplate } from '@/db/templates';
@@ -18,14 +20,15 @@ import { createWorkout, deleteWorkout, getWorkout, updateWorkout } from '@/db/wo
 import {
   ExerciseEditor,
   draftsFromRows,
-  newKey,
+  exerciseDraft,
   parseDrafts,
-  setDraft,
   type ExerciseDraft,
 } from '@/features/activity/exercise-editor';
 import { ExercisePicker } from '@/features/activity/exercise-picker';
+import { describeBeatenRecords } from '@/features/activity/records';
 import { WORKOUT_TYPES, WORKOUT_TYPE_KEYS, workoutPace, type WorkoutType } from '@/features/activity/workout-types';
-import { addDays, formatDayShort, isDateKey, type DateKey } from '@/lib/dates';
+import { confirmDelete } from '@/lib/alerts';
+import { addDays, isDateKey, type DateKey } from '@/lib/dates';
 import { formatDecimal, parseDecimal } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { radius, spacing } from '@/theme/theme';
@@ -51,9 +54,7 @@ export default function WorkoutEditScreen() {
 
   const db = useSQLiteContext();
   const today = useToday();
-  const yesterday = addDays(today, -1);
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
 
   const [form, setForm] = useState<Form>({
     type: 'run',
@@ -64,7 +65,6 @@ export default function WorkoutEditScreen() {
     exercises: [],
   });
   const [loaded, setLoaded] = useState(isNew);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
   const [templateNameOpen, setTemplateNameOpen] = useState(false);
   const { rows: templates } = useQuery<WorkoutTemplate>(TEMPLATES_SQL, [], ['workout_templates', 'template_sets']);
@@ -107,13 +107,7 @@ export default function WorkoutEditScreen() {
 
   // Nowe ćwiczenie dostaje pierwszą serię z ostatniego treningu, w którym było robione.
   const addExercise = async (exercise: Exercise) => {
-    const last = await getLastSet(db, exercise.id, isNew ? null : workoutId);
-    const draft: ExerciseDraft = {
-      key: newKey(),
-      exerciseId: exercise.id,
-      name: exercise.name,
-      sets: [setDraft(last?.reps ?? null, last?.weight_kg ?? null)],
-    };
+    const draft = exerciseDraft(exercise, await getLastSet(db, exercise.id, isNew ? null : workoutId));
     setForm((current) => ({ ...current, exercises: [...current.exercises, draft] }));
   };
 
@@ -139,8 +133,8 @@ export default function WorkoutEditScreen() {
       note: form.note.trim(),
     };
     // Trening i jego serie zapisują się razem albo wcale.
+    let id = workoutId;
     await db.withTransactionAsync(async () => {
-      let id = workoutId;
       if (isNew) {
         id = (await createWorkout(db, input)).lastInsertRowId;
       } else {
@@ -148,44 +142,34 @@ export default function WorkoutEditScreen() {
       }
       await replaceWorkoutSets(db, id, exerciseSets);
     });
-    router.back();
+
+    const beaten = await describeBeatenRecords(
+      db,
+      id,
+      form.date,
+      exerciseSets.map((exercise) => ({
+        ...exercise,
+        name: form.exercises.find((draft) => draft.exerciseId === exercise.exerciseId)?.name ?? '',
+      })),
+    );
+    if (beaten.length) {
+      Alert.alert('Nowy rekord! 🏆', beaten.join('\n'), [{ text: 'Super', onPress: () => router.back() }]);
+    } else {
+      router.back();
+    }
   };
 
-  const confirmDelete = () => {
-    Alert.alert('Usunąć trening?', undefined, [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Usuń',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteWorkout(db, workoutId);
-          router.back();
-        },
-      },
-    ]);
-  };
-
-  const customDate = form.date !== today && form.date !== yesterday;
+  const remove = () =>
+    confirmDelete('Usunąć trening?', undefined, async () => {
+      await deleteWorkout(db, workoutId);
+      router.back();
+    });
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: isNew ? 'Nowy trening' : 'Trening',
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} hitSlop={8} accessibilityRole="button">
-              <AppText variant="bodyStrong" tone={canSave ? 'accent' : 'textMuted'}>
-                Zapisz
-              </AppText>
-            </Pressable>
-          ),
-        }}
-      />
-
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScrollScreen
+        title={isNew ? 'Nowy trening' : 'Trening'}
+        headerRight={<HeaderTextButton onPress={save} disabled={!canSave} />}>
         {loaded ? (
           <>
             <View style={styles.typeGrid}>
@@ -212,23 +196,20 @@ export default function WorkoutEditScreen() {
               })}
             </View>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Data
-              </AppText>
-              <View style={styles.chips}>
-                <Chip label="Dziś" selected={form.date === today} onPress={() => update({ date: today })} />
-                <Chip label="Wczoraj" selected={form.date === yesterday} onPress={() => update({ date: yesterday })} />
-                <Chip
-                  label={customDate ? formatDayShort(form.date, today) : 'Inna data'}
-                  icon="calendar_month"
-                  selected={customDate}
-                  onPress={() => setPickerOpen(true)}
-                />
-              </View>
-            </View>
+            <Section title="Data">
+              <DateChoice
+                value={form.date}
+                onChange={(date) => date && update({ date })}
+                today={today}
+                pickerTitle="Data treningu"
+                presets={[
+                  { label: 'Dziś', date: today },
+                  { label: 'Wczoraj', date: addDays(today, -1) },
+                ]}
+              />
+            </Section>
 
-            <View style={styles.section}>
+            <View style={styles.field}>
               <TextField
                 label="Czas trwania (min)"
                 value={form.duration}
@@ -237,7 +218,7 @@ export default function WorkoutEditScreen() {
                 keyboardType="number-pad"
                 maxLength={4}
               />
-              <View style={styles.chips}>
+              <ChipRow>
                 {QUICK_DURATIONS.map((minutes) => (
                   <Chip
                     key={minutes}
@@ -246,11 +227,11 @@ export default function WorkoutEditScreen() {
                     onPress={() => update({ duration: String(minutes) })}
                   />
                 ))}
-              </View>
+              </ChipRow>
             </View>
 
             {typeInfo.hasDistance ? (
-              <View style={styles.section}>
+              <View style={styles.field}>
                 <TextField
                   label="Dystans (km, opcjonalnie)"
                   value={form.distance}
@@ -272,19 +253,17 @@ export default function WorkoutEditScreen() {
             ) : null}
 
             {isGym ? (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <AppText variant="label" tone="textSecondary" style={styles.flex}>
-                    Ćwiczenia
-                  </AppText>
+              <Section
+                title="Ćwiczenia"
+                action={
                   <Pressable onPress={() => router.push('/szablony')} hitSlop={8} accessibilityRole="button">
                     <AppText variant="caption" tone="accent">
                       Szablony ›
                     </AppText>
                   </Pressable>
-                </View>
+                }>
                 {templates.length > 0 ? (
-                  <View style={styles.chips}>
+                  <ChipRow>
                     {templates.map((template) => (
                       <Chip
                         key={template.id}
@@ -294,7 +273,7 @@ export default function WorkoutEditScreen() {
                         onPress={() => applyTemplate(template.id)}
                       />
                     ))}
-                  </View>
+                  </ChipRow>
                 ) : null}
                 <ExerciseEditor
                   exercises={form.exercises}
@@ -313,7 +292,7 @@ export default function WorkoutEditScreen() {
                     onPress={() => setTemplateNameOpen(true)}
                   />
                 ) : null}
-              </View>
+              </Section>
             ) : null}
 
             <TextField
@@ -324,22 +303,10 @@ export default function WorkoutEditScreen() {
               multiline
             />
 
-            {!isNew ? (
-              <Button label="Usuń trening" variant="danger" icon="delete" onPress={confirmDelete} />
-            ) : null}
+            {!isNew ? <Button label="Usuń trening" variant="danger" icon="delete" onPress={remove} /> : null}
           </>
         ) : null}
-      </ScrollView>
-
-      <DatePickerSheet
-        visible={pickerOpen}
-        title="Data treningu"
-        today={today}
-        value={form.date}
-        onChange={(date) => date && update({ date })}
-        onClose={() => setPickerOpen(false)}
-        clearable={false}
-      />
+      </ScrollScreen>
 
       <PromptSheet
         visible={templateNameOpen}
@@ -359,11 +326,7 @@ export default function WorkoutEditScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
-  section: { gap: spacing.sm },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center' },
-  flex: { flex: 1 },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  field: { gap: spacing.sm },
   typeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   typeTile: {
     flexBasis: '31%',

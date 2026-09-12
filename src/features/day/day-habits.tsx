@@ -1,16 +1,13 @@
-import { useSQLiteContext } from 'expo-sqlite';
-import { useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { IconButton } from '@/components/button';
-import { Icon, type IconName } from '@/components/icon';
+import { Card } from '@/components/card';
+import { Icon } from '@/components/icon';
 import type { HabitWithCount } from '@/db/day';
-import { nextHabitCount, setHabitCount } from '@/db/habits';
-import { buttonLabel, isAmountHabit } from '@/features/habits/amount';
-import { AmountSheet, type AmountTarget } from '@/features/habits/amount-sheet';
+import { buttonLabel } from '@/features/habits/amount';
 import { HabitIcon, HabitProgressButton } from '@/features/habits/habit-card';
 import { isScheduled } from '@/features/habits/streak';
+import { useHabitCounter } from '@/features/habits/use-habit-counter';
 import type { DateKey } from '@/lib/dates';
 import { paletteColor } from '@/theme/palette';
 import { radius, spacing, withAlpha } from '@/theme/theme';
@@ -31,19 +28,8 @@ type Props = {
 
 /** Odhaczanie nawyków danego dnia: licznik +1/−1, ilość przez okienko. */
 export function DayHabits({ habits, date, today, variant }: Props) {
-  const db = useSQLiteContext();
   const { colors, dark } = useTheme();
-  const [amountTarget, setAmountTarget] = useState<AmountTarget | null>(null);
-
-  const change = (habit: HabitWithCount, count: number) => setHabitCount(db, habit.id, date, count);
-  const tap = (habit: HabitWithCount) =>
-    isAmountHabit(habit)
-      ? setAmountTarget({ habit, date, count: habit.count })
-      : change(habit, nextHabitCount(habit.count, habit.target_per_day));
-  const hold = (habit: HabitWithCount) =>
-    isAmountHabit(habit)
-      ? setAmountTarget({ habit, date, count: habit.count })
-      : habit.count > 0 && change(habit, habit.count - 1);
+  const { tap, hold, sheet } = useHabitCounter(today);
 
   return (
     <>
@@ -52,7 +38,7 @@ export function DayHabits({ habits, date, today, variant }: Props) {
           {habits.map((habit) => {
             const color = paletteColor(habit.color, dark);
             return (
-              <View key={habit.id} style={[styles.row, { backgroundColor: colors.surface }]}>
+              <Card key={habit.id} variant="row" style={styles.row}>
                 <HabitIcon icon={habit.icon} color={color} size={36} />
                 <AppText style={styles.flex} numberOfLines={1}>
                   {habit.name}
@@ -63,10 +49,10 @@ export function DayHabits({ habits, date, today, variant }: Props) {
                   color={color}
                   size={36}
                   label={buttonLabel(habit.count, habit)}
-                  onPress={() => tap(habit)}
-                  onLongPress={() => hold(habit)}
+                  onPress={() => tap(habit, date, habit.count)}
+                  onLongPress={() => hold(habit, date, habit.count)}
                 />
-              </View>
+              </Card>
             );
           })}
         </View>
@@ -78,8 +64,8 @@ export function DayHabits({ habits, date, today, variant }: Props) {
             return (
               <Pressable
                 key={habit.id}
-                onPress={() => tap(habit)}
-                onLongPress={() => hold(habit)}
+                onPress={() => tap(habit, date, habit.count)}
+                onLongPress={() => hold(habit, date, habit.count)}
                 accessibilityLabel={`${habit.name}: ${habit.count} z ${habit.target_per_day}`}
                 style={[
                   styles.chip,
@@ -98,59 +84,15 @@ export function DayHabits({ habits, date, today, variant }: Props) {
           })}
         </View>
       )}
-      <AmountSheet
-        target={amountTarget}
-        today={today}
-        onSave={({ habit }, count) => setHabitCount(db, habit.id, date, count)}
-        onClose={() => setAmountTarget(null)}
-      />
+      {sheet}
     </>
-  );
-}
-
-type SectionProps = {
-  icon: IconName;
-  color: string;
-  title: string;
-  meta?: string;
-  onAdd?: () => void;
-  children: ReactNode;
-};
-
-/** Sekcja dnia: ikona modułu, tytuł, licznik po prawej i opcjonalne „+”. */
-export function DaySection({ icon, color, title, meta, onAdd, children }: SectionProps) {
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Icon name={icon} size={18} color={color} />
-        <AppText variant="label" tone="textSecondary" style={styles.flex}>
-          {title}
-        </AppText>
-        {meta ? (
-          <AppText variant="caption" tone="textSecondary">
-            {meta}
-          </AppText>
-        ) : null}
-        {onAdd ? <IconButton icon="add" accessibilityLabel={`Dodaj: ${title.toLowerCase()}`} onPress={onAdd} /> : null}
-      </View>
-      {children}
-    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  section: { gap: spacing.sm },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 32 },
   rows: { gap: spacing.sm },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.md,
-  },
+  row: { paddingVertical: spacing.sm },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   chip: {
     flexDirection: 'row',

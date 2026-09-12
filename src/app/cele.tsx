@@ -1,22 +1,21 @@
-import { Stack, router } from 'expo-router';
-import { SectionList, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { SectionList, StyleSheet } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
+import { StackHeader, useListScreenStyle } from '@/components/screen';
+import { Separator } from '@/components/separator';
 import { GOALS_SQL, type Goal } from '@/db/goals';
 import { useQuery } from '@/db/use-query';
 import { GoalCard } from '@/features/goals/goal-card';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
-import { useTheme } from '@/theme/use-theme';
 
 /** Cele długoterminowe: trwające i zakończone. */
 export default function GoalsScreen() {
   const today = useToday();
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
+  const listStyle = useListScreenStyle();
   const { rows: goals, loaded } = useQuery<Goal>(GOALS_SQL, { $today: today }, ['goals']);
 
   const open = (id: number | 'nowy') => router.push({ pathname: '/cel/[id]', params: { id: String(id) } });
@@ -27,17 +26,11 @@ export default function GoalsScreen() {
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: 'Cele',
-          headerRight: () => <IconButton icon="add" accessibilityLabel="Nowy cel" onPress={() => open('nowy')} />,
-        }}
-      />
+      <StackHeader title="Cele" headerRight={<IconButton icon="add" accessibilityLabel="Nowy cel" onPress={() => open('nowy')} />} />
       <SectionList
+        {...listStyle}
         sections={sections}
         keyExtractor={(goal) => String(goal.id)}
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.list, { paddingBottom: insets.bottom + spacing.xl }]}
         stickySectionHeadersEnabled={false}
         renderSectionHeader={({ section }) => (
           <AppText variant="label" tone="textSecondary" style={styles.sectionHeader}>
@@ -60,12 +53,6 @@ export default function GoalsScreen() {
   );
 }
 
-function Separator() {
-  return <View style={styles.separator} />;
-}
-
 const styles = StyleSheet.create({
-  list: { flexGrow: 1, paddingHorizontal: spacing.lg },
-  sectionHeader: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
-  separator: { height: spacing.sm },
+  sectionHeader: { paddingTop: spacing.md, paddingBottom: spacing.sm },
 });

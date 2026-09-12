@@ -1,12 +1,15 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { IconName } from '@/components/icon';
+import type { TransactionType } from '@/db/finance';
 import { WORKOUT_TYPES, type WorkoutType } from '@/features/activity/workout-types';
+import { formatSignedMoney } from '@/features/finance/money';
+import { notePreview, stripMarkdown } from '@/features/notes/markdown';
 import type { DateKey } from '@/lib/dates';
 import { matchesSearch } from '@/lib/search';
 import type { ThemeColors } from '@/theme/theme';
 
-export type SearchKind = 'task' | 'note' | 'journal' | 'habit' | 'workout';
+export type SearchKind = 'task' | 'note' | 'journal' | 'habit' | 'workout' | 'transaction';
 
 export type SearchResult = {
   key: string;
@@ -16,7 +19,9 @@ export type SearchResult = {
   body: string;
   date: DateKey | null;
   /** Dokąd prowadzi stuknięcie. */
-  target: { pathname: '/zadanie/[id]' | '/notatka/[id]' | '/nawyk/[id]' | '/trening/[id]'; params: { id: string } } | {
+  target:
+    | { pathname: '/zadanie/[id]' | '/notatka/[id]' | '/nawyk/[id]' | '/trening/[id]' | '/finanse/transakcja/[id]'; params: { id: string } }
+    | {
     pathname: '/dziennik/[date]';
     params: { date: string };
   };
@@ -28,6 +33,7 @@ export const SEARCH_KINDS: Record<SearchKind, { label: string; icon: IconName; c
   journal: { label: 'Dziennik', icon: 'auto_stories', color: 'journal' },
   habit: { label: 'Nawyki', icon: 'check_circle', color: 'habits' },
   workout: { label: 'Treningi', icon: 'directions_run', color: 'activity' },
+  transaction: { label: 'Wydatki', icon: 'payments', color: 'finance' },
 };
 
 const LIMIT_PER_KIND = 20;
@@ -38,7 +44,7 @@ const LIMIT_PER_KIND = 20;
  * `query` musi być już znormalizowane (normalizeForSearch).
  */
 export async function searchEverything(db: SQLiteDatabase, query: string): Promise<SearchResult[]> {
-  const [tasks, subtasks, notes, journal, habits, workouts] = await Promise.all([
+  const [tasks, subtasks, notes, journal, habits, workouts, transactions] = await Promise.all([
     db.getAllAsync<{ id: number; title: string; notes: string; due_date: DateKey | null; completed_at: string | null }>(
       'SELECT id, title, notes, due_date, completed_at FROM tasks ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, id DESC',
     ),
@@ -52,6 +58,11 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
     db.getAllAsync<{ id: number; name: string; icon: string }>('SELECT id, name, icon FROM habits ORDER BY archived, sort_order'),
     db.getAllAsync<{ id: number; type: WorkoutType; date: DateKey; note: string }>(
       'SELECT id, type, date, note FROM workouts ORDER BY date DESC, id DESC',
+    ),
+    db.getAllAsync<{ id: number; type: TransactionType; amount: number; date: DateKey; note: string; category: string | null; icon: string | null }>(
+      `SELECT t.id, t.type, t.amount, t.date, t.note, c.name AS category, c.icon
+       FROM transactions t LEFT JOIN finance_categories c ON c.id = t.category_id
+       ORDER BY t.date DESC, t.id DESC`,
     ),
   ]);
 
@@ -87,8 +98,9 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
       .map((note) => ({
         key: `note:${note.id}`,
         kind: 'note' as const,
-        title: note.title.trim() || note.body.trim().split('\n')[0] || 'Bez tytułu',
-        body: note.body,
+        // Bez znaczników formatowania (#, **, - [ ]) — w wynikach liczy się sam tekst.
+        title: notePreview(note).headline,
+        body: stripMarkdown(note.body),
         date: null,
         target: { pathname: '/notatka/[id]' as const, params: { id: String(note.id) } },
       })),
@@ -130,6 +142,19 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
         body: workout.note,
         date: workout.date,
         target: { pathname: '/trening/[id]' as const, params: { id: String(workout.id) } },
+      })),
+  );
+
+  push(
+    transactions
+      .filter((transaction) => matchesSearch(`${transaction.category ?? ''}\n${transaction.note}`, query))
+      .map((transaction) => ({
+        key: `transaction:${transaction.id}`,
+        kind: 'transaction' as const,
+        title: `${transaction.icon ?? '📦'} ${transaction.category ?? 'Bez kategorii'} · ${formatSignedMoney(transaction.amount, transaction.type)}`,
+        body: transaction.note,
+        date: transaction.date,
+        target: { pathname: '/finanse/transakcja/[id]' as const, params: { id: String(transaction.id) } },
       })),
   );
 

@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import type { ExerciseSets } from '@/db/exercises';
+import { replaceSets, type ExerciseSets } from '@/db/exercises';
 
 export type WorkoutTemplate = {
   id: number;
@@ -37,28 +37,11 @@ export function getTemplateSets(db: SQLiteDatabase, templateId: number) {
   );
 }
 
-async function replaceTemplateSets(db: SQLiteDatabase, templateId: number, exercises: ExerciseSets[]) {
-  await db.runAsync('DELETE FROM template_sets WHERE template_id = ?', templateId);
-  let position = 0;
-  for (const exercise of exercises) {
-    for (const set of exercise.sets) {
-      await db.runAsync(
-        'INSERT INTO template_sets (template_id, exercise_id, position, reps, weight_kg) VALUES (?, ?, ?, ?, ?)',
-        templateId,
-        exercise.exerciseId,
-        position++,
-        set.reps,
-        set.weight_kg,
-      );
-    }
-  }
-}
-
 export async function createTemplate(db: SQLiteDatabase, name: string, exercises: ExerciseSets[]) {
   let id = 0;
   await db.withTransactionAsync(async () => {
     id = (await db.runAsync('INSERT INTO workout_templates (name) VALUES (?)', name)).lastInsertRowId;
-    await replaceTemplateSets(db, id, exercises);
+    await replaceSets(db, 'template', id, exercises);
   });
   return id;
 }
@@ -66,7 +49,7 @@ export async function createTemplate(db: SQLiteDatabase, name: string, exercises
 export async function updateTemplate(db: SQLiteDatabase, id: number, name: string, exercises: ExerciseSets[]) {
   await db.withTransactionAsync(async () => {
     await db.runAsync('UPDATE workout_templates SET name = ? WHERE id = ?', name, id);
-    await replaceTemplateSets(db, id, exercises);
+    await replaceSets(db, 'template', id, exercises);
   });
 }
 

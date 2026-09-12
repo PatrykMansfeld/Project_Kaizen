@@ -1,5 +1,13 @@
 import type { Habit } from '@/db/habits';
-import { bestStreak, currentStreak, habitStartDay, isScheduled } from '@/features/habits/streak';
+import {
+  bestStreak,
+  bestWeeklyStreak,
+  currentStreak,
+  currentWeeklyStreak,
+  doneInWeek,
+  habitStartDay,
+  isScheduled,
+} from '@/features/habits/streak';
 import { addDays, fromDateKey, startOfWeek, toDateKey, type DateKey } from '@/lib/dates';
 
 export type Period = 'week' | 'month';
@@ -49,6 +57,8 @@ export type HabitMonthStats = {
   rate: number | null;
   best: number;
   current: number;
+  /** W czym liczone `scheduled`/`done`/serie: dni albo tygodnie (nawyk „X razy w tygodniu”). */
+  unit: 'days' | 'weeks';
 };
 
 /**
@@ -57,7 +67,7 @@ export type HabitMonthStats = {
  * skuteczność nie spadała rano tylko dlatego, że dzień jeszcze trwa.
  */
 export function habitMonthStats(
-  habit: Pick<Habit, 'created_at' | 'days_mask' | 'target_per_day'>,
+  habit: Pick<Habit, 'created_at' | 'days_mask' | 'target_per_day'> & { weekly_target?: number | null },
   counts: Map<DateKey, number>,
   doneDays: Set<DateKey>,
   monthStart: DateKey,
@@ -67,6 +77,28 @@ export function habitMonthStats(
   const start = habitStartDay(habit.created_at, doneDays);
   const from = start > monthStart ? start : monthStart;
   const to = monthEnd < today ? monthEnd : today;
+
+  // „X razy w tygodniu”: liczymy tygodnie. Bieżący tydzień wlicza się dopiero po osiągnięciu celu.
+  if (habit.weekly_target) {
+    const target = habit.weekly_target;
+    let weeks = 0;
+    let met = 0;
+    for (let monday = startOfWeek(from); monday <= to; monday = addDays(monday, 7)) {
+      const achieved = doneInWeek(doneDays, monday) >= target;
+      if (achieved || addDays(monday, 6) < today) {
+        weeks++;
+        if (achieved) met++;
+      }
+    }
+    return {
+      scheduled: weeks,
+      done: met,
+      rate: weeks > 0 ? met / weeks : null,
+      best: bestWeeklyStreak(doneDays, today, target, start),
+      current: currentWeeklyStreak(doneDays, today, target, start),
+      unit: 'weeks',
+    };
+  }
 
   let scheduled = 0;
   let done = 0;
@@ -84,7 +116,33 @@ export function habitMonthStats(
     rate: scheduled > 0 ? done / scheduled : null,
     best: bestStreak(doneDays, today, habit.days_mask, start),
     current: currentStreak(doneDays, today, habit.days_mask, start),
+    unit: 'days',
   };
+}
+
+export type HabitsSummary<H> = {
+  stats: (HabitMonthStats & { habit: H })[];
+  scheduled: number;
+  done: number;
+  rate: number | null;
+};
+
+/** Skuteczność wszystkich nawyków w okresie: per nawyk i łącznie. */
+export function habitsSummary<H extends Parameters<typeof habitMonthStats>[0] & { id: number }>(
+  habits: readonly H[],
+  counts: Map<number, Map<DateKey, number>>,
+  doneDays: Map<number, Set<DateKey>>,
+  from: DateKey,
+  to: DateKey,
+  today: DateKey,
+): HabitsSummary<H> {
+  const stats = habits.map((habit) => ({
+    habit,
+    ...habitMonthStats(habit, counts.get(habit.id) ?? new Map(), doneDays.get(habit.id) ?? new Set(), from, to, today),
+  }));
+  const scheduled = stats.reduce((sum, stat) => sum + stat.scheduled, 0);
+  const done = stats.reduce((sum, stat) => sum + stat.done, 0);
+  return { stats, scheduled, done, rate: scheduled ? done / scheduled : null };
 }
 
 export function moodStats(moods: number[]) {

@@ -1,13 +1,14 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { DatePickerSheet } from '@/components/date-picker-sheet';
+import { Chip, ChipRow } from '@/components/chip';
+import { DateChoice } from '@/components/date-choice';
+import { HeaderTextButton } from '@/components/header';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
 import { TextField } from '@/components/text-field';
 import {
   MEASUREMENT_TYPES,
@@ -19,11 +20,10 @@ import {
   updateMeasurement,
   type MeasurementType,
 } from '@/db/measurements';
-import { addDays, formatDayShort, type DateKey } from '@/lib/dates';
+import { confirmDelete } from '@/lib/alerts';
+import { addDays, type DateKey } from '@/lib/dates';
 import { formatDecimal, parseDecimal } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
-import { spacing } from '@/theme/theme';
-import { useTheme } from '@/theme/use-theme';
 
 function isMeasurementType(value: unknown): value is MeasurementType {
   return typeof value === 'string' && value in MEASUREMENT_TYPES;
@@ -37,16 +37,12 @@ export default function MeasurementEditScreen() {
 
   const db = useSQLiteContext();
   const today = useToday();
-  const yesterday = addDays(today, -1);
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
 
   const [type, setType] = useState<MeasurementType>(isMeasurementType(params.type) ? params.type : 'weight');
   const [date, setDate] = useState<DateKey>(today);
   const [valueText, setValueText] = useState('');
   const [lastValue, setLastValue] = useState<number | null>(null);
   const [loaded, setLoaded] = useState(isNew);
-  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -84,103 +80,57 @@ export default function MeasurementEditScreen() {
     router.back();
   };
 
-  const confirmDelete = () => {
-    Alert.alert('Usunąć pomiar?', undefined, [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Usuń',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteMeasurement(db, measurementId);
-          router.back();
-        },
-      },
-    ]);
-  };
-
-  const customDate = date !== today && date !== yesterday;
+  const remove = () =>
+    confirmDelete('Usunąć pomiar?', undefined, async () => {
+      await deleteMeasurement(db, measurementId);
+      router.back();
+    });
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: isNew ? 'Nowy pomiar' : 'Pomiar',
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} hitSlop={8} accessibilityRole="button">
-              <AppText variant="bodyStrong" tone={canSave ? 'accent' : 'textMuted'}>
-                Zapisz
-              </AppText>
-            </Pressable>
-          ),
-        }}
-      />
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
-        {loaded ? (
-          <>
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Rodzaj
-              </AppText>
-              <View style={styles.chips}>
-                {MEASUREMENT_TYPE_KEYS.map((key) => (
-                  <Chip key={key} label={MEASUREMENT_TYPES[key].label} selected={type === key} onPress={() => setType(key)} />
-                ))}
-              </View>
-            </View>
+    <ScrollScreen
+      title={isNew ? 'Nowy pomiar' : 'Pomiar'}
+      headerRight={<HeaderTextButton onPress={save} disabled={!canSave} />}>
+      {loaded ? (
+        <>
+          <Section title="Rodzaj">
+            <ChipRow>
+              {MEASUREMENT_TYPE_KEYS.map((key) => (
+                <Chip key={key} label={MEASUREMENT_TYPES[key].label} selected={type === key} onPress={() => setType(key)} />
+              ))}
+            </ChipRow>
+          </Section>
 
-            <TextField
-              label={`Wartość (${unit})`}
-              value={valueText}
-              onChangeText={setValueText}
-              placeholder={lastValue !== null ? `ostatnio ${formatDecimal(lastValue, 1)}` : 'np. 82,4'}
-              keyboardType="decimal-pad"
-              maxLength={6}
-              autoFocus={isNew}
+          <TextField
+            label={`Wartość (${unit})`}
+            value={valueText}
+            onChangeText={setValueText}
+            placeholder={lastValue !== null ? `ostatnio ${formatDecimal(lastValue, 1)}` : 'np. 82,4'}
+            keyboardType="decimal-pad"
+            maxLength={6}
+            autoFocus={isNew}
+          />
+          {valueText && !valid ? (
+            <AppText variant="caption" tone="danger">
+              Wpisz liczbę, np. 82,4
+            </AppText>
+          ) : null}
+
+          <Section title="Data">
+            <DateChoice
+              value={date}
+              onChange={(day) => day && setDate(day)}
+              today={today}
+              pickerTitle="Data pomiaru"
+              presets={[
+                { label: 'Dziś', date: today },
+                { label: 'Wczoraj', date: addDays(today, -1) },
+              ]}
             />
-            {valueText && !valid ? (
-              <AppText variant="caption" tone="danger">
-                Wpisz liczbę, np. 82,4
-              </AppText>
-            ) : null}
+          </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Data
-              </AppText>
-              <View style={styles.chips}>
-                <Chip label="Dziś" selected={date === today} onPress={() => setDate(today)} />
-                <Chip label="Wczoraj" selected={date === yesterday} onPress={() => setDate(yesterday)} />
-                <Chip
-                  label={customDate ? formatDayShort(date, today) : 'Inna data'}
-                  icon="calendar_month"
-                  selected={customDate}
-                  onPress={() => setPickerOpen(true)}
-                />
-              </View>
-            </View>
-
-            {!isNew ? <Button label="Usuń pomiar" variant="danger" icon="delete" onPress={confirmDelete} /> : null}
-          </>
-        ) : null}
-      </ScrollView>
-      <DatePickerSheet
-        visible={pickerOpen}
-        title="Data pomiaru"
-        today={today}
-        value={date}
-        onChange={(day) => day && setDate(day)}
-        onClose={() => setPickerOpen(false)}
-        clearable={false}
-      />
-    </>
+          {!isNew ? <Button label="Usuń pomiar" variant="danger" icon="delete" onPress={remove} /> : null}
+        </>
+      ) : null}
+    </ScrollScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
-  section: { gap: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-});

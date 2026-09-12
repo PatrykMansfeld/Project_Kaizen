@@ -217,6 +217,193 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX template_sets_template ON template_sets (template_id);
   `,
+
+  // v6 — sen, przegląd tygodnia, projekty zadań, nawyki „X razy w tygodniu”, zdjęcia w notatkach
+  `
+  -- Sen przypisany do dnia pobudki.
+  CREATE TABLE sleep_logs (
+    date TEXT PRIMARY KEY,
+    bedtime TEXT NOT NULL,
+    wake_time TEXT NOT NULL,
+    duration_min INTEGER NOT NULL CHECK (duration_min > 0),
+    quality INTEGER CHECK (quality BETWEEN 1 AND 5),
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+
+  -- Przegląd tygodnia, klucz = poniedziałek.
+  CREATE TABLE weekly_reviews (
+    week_start TEXT PRIMARY KEY,
+    went_well TEXT NOT NULL DEFAULT '',
+    improve TEXT NOT NULL DEFAULT '',
+    priorities TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+
+  CREATE TABLE projects (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL,
+    archived INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  ALTER TABLE tasks ADD COLUMN project_id INTEGER REFERENCES projects (id) ON DELETE SET NULL;
+  CREATE INDEX tasks_project ON tasks (project_id);
+
+  -- NULL = nawyk w konkretne dni (days_mask); 1–7 = tyle razy w tygodniu, w dowolne dni.
+  ALTER TABLE habits ADD COLUMN weekly_target INTEGER CHECK (weekly_target BETWEEN 1 AND 7);
+
+  -- Zdjęcia w notatkach: pliki w katalogu aplikacji, w bazie tylko ścieżki.
+  CREATE TABLE note_images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id INTEGER NOT NULL REFERENCES notes (id) ON DELETE CASCADE,
+    uri TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX note_images_note ON note_images (note_id);
+  `,
+  // v7 — wydatki i budżet
+  `
+  -- Kategorie wydatków i przychodów. Kwoty w groszach; monthly_budget NULL = bez limitu.
+  CREATE TABLE finance_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    color TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('expense', 'income')),
+    monthly_budget INTEGER CHECK (monthly_budget > 0),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  INSERT INTO finance_categories (name, icon, color, type, sort_order) VALUES
+    ('Jedzenie', '🛒', 'green', 'expense', 1), ('Restauracje', '🍔', 'orange', 'expense', 2),
+    ('Transport', '🚗', 'blue', 'expense', 3), ('Dom', '🏠', 'indigo', 'expense', 4),
+    ('Rachunki', '💡', 'yellow', 'expense', 5), ('Zdrowie', '💊', 'red', 'expense', 6),
+    ('Rozrywka', '🎬', 'purple', 'expense', 7), ('Zakupy', '🛍️', 'pink', 'expense', 8),
+    ('Inne', '📦', 'teal', 'expense', 9),
+    ('Wypłata', '💰', 'green', 'income', 10), ('Inne przychody', '➕', 'teal', 'income', 11);
+  -- Wydatki i przychody; kwota w groszach (liczba całkowita — bez błędów zaokrągleń).
+  -- Usunięcie kategorii zostawia wpisy „bez kategorii”.
+  CREATE TABLE transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    type TEXT NOT NULL CHECK (type IN ('expense', 'income')),
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    category_id INTEGER REFERENCES finance_categories (id) ON DELETE SET NULL,
+    date TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX transactions_date ON transactions (date);
+  CREATE INDEX transactions_category ON transactions (category_id);
+  `,
+  // v8 — stałe opłaty, leki i suplementy, umiejętności, dom
+  `
+  -- Stałe opłaty i subskrypcje; kwota w groszach, next_due = najbliższy termin płatności.
+  CREATE TABLE recurring_bills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    color TEXT NOT NULL,
+    amount INTEGER NOT NULL CHECK (amount > 0),
+    frequency TEXT NOT NULL CHECK (frequency IN ('weekly', 'monthly', 'quarterly', 'yearly')),
+    next_due TEXT NOT NULL,
+    category_id INTEGER REFERENCES finance_categories (id) ON DELETE SET NULL,
+    -- Ile dni przed terminem przypomnieć (NULL = bez przypomnienia).
+    remind_days_before INTEGER CHECK (remind_days_before BETWEEN 0 AND 14),
+    active INTEGER NOT NULL DEFAULT 1,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  -- Wydatek zapisany przyciskiem „Zapłacone” wskazuje na opłatę (historia płatności).
+  ALTER TABLE transactions ADD COLUMN bill_id INTEGER REFERENCES recurring_bills (id) ON DELETE SET NULL;
+  CREATE INDEX transactions_bill ON transactions (bill_id);
+
+  CREATE TABLE medications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    dose TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL,
+    color TEXT NOT NULL,
+    -- Godziny dawek 'HH:MM' po przecinku; pusto = lek doraźny (bez harmonogramu).
+    times TEXT NOT NULL DEFAULT '',
+    days_mask INTEGER NOT NULL DEFAULT 127 CHECK (days_mask BETWEEN 1 AND 127),
+    -- Zapas w sztukach (NULL = nie liczymy) i ile sztuk schodzi na jedną dawkę.
+    stock INTEGER CHECK (stock >= 0),
+    per_dose INTEGER NOT NULL DEFAULT 1 CHECK (per_dose >= 1),
+    reminders INTEGER NOT NULL DEFAULT 1,
+    active INTEGER NOT NULL DEFAULT 1,
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE TABLE medication_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    medication_id INTEGER NOT NULL REFERENCES medications (id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    -- Godzina z harmonogramu ('HH:MM'); dla leku doraźnego — godzina wzięcia.
+    time TEXT NOT NULL,
+    taken_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    UNIQUE (medication_id, date, time)
+  );
+  CREATE INDEX medication_logs_date ON medication_logs (date);
+
+  CREATE TABLE skills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    color TEXT NOT NULL,
+    goal_hours INTEGER CHECK (goal_hours > 0),
+    archived INTEGER NOT NULL DEFAULT 0,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE TABLE practice_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    skill_id INTEGER NOT NULL REFERENCES skills (id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    minutes INTEGER NOT NULL CHECK (minutes > 0),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX practice_sessions_skill ON practice_sessions (skill_id, date);
+
+  -- Obowiązki domowe co N dni (np. filtr co 90 dni).
+  CREATE TABLE home_chores (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    interval_days INTEGER NOT NULL CHECK (interval_days > 0),
+    next_due TEXT NOT NULL,
+    last_done TEXT,
+    remind INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE TABLE warranties (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    purchase_date TEXT,
+    expires_on TEXT NOT NULL,
+    price INTEGER CHECK (price > 0),
+    store TEXT NOT NULL DEFAULT '',
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE TABLE meters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE TABLE meter_readings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meter_id INTEGER NOT NULL REFERENCES meters (id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    value REAL NOT NULL CHECK (value >= 0),
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX meter_readings_meter ON meter_readings (meter_id, date);
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

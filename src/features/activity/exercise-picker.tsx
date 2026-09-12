@@ -1,15 +1,15 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { BottomSheet } from '@/components/bottom-sheet';
 import { IconButton } from '@/components/button';
 import { Icon } from '@/components/icon';
 import { SearchField } from '@/components/search-field';
 import { EXERCISES_SQL, createExercise, type Exercise } from '@/db/exercises';
 import { useQuery } from '@/db/use-query';
-import { radius, spacing } from '@/theme/theme';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 type Props = {
@@ -23,22 +23,15 @@ type Props = {
 /** Wybór ćwiczenia z katalogu z wyszukiwarką; brakujące można od razu dodać. */
 export function ExercisePicker({ visible, onClose, ...rest }: Props) {
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} tall gap={spacing.md}>
       <PickerContent onClose={onClose} {...rest} />
-    </Modal>
+    </BottomSheet>
   );
 }
 
 function PickerContent({ excludeIds, onPick, onClose }: Omit<Props, 'visible'>) {
   const db = useSQLiteContext();
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const { rows: exercises } = useQuery<Exercise>(EXERCISES_SQL, [], ['exercises']);
 
@@ -60,52 +53,40 @@ function PickerContent({ excludeIds, onPick, onClose }: Omit<Props, 'visible'>) 
 
   return (
     <>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Zamknij" />
-      <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom }]}>
-        <View style={styles.header}>
-          <AppText variant="heading" style={styles.flex}>
-            Dodaj ćwiczenie
-          </AppText>
-          <IconButton icon="close" accessibilityLabel="Zamknij" onPress={onClose} />
-        </View>
-        <SearchField value={search} onChangeText={setSearch} placeholder="Szukaj lub wpisz nowe" />
-
-        <FlatList
-          data={visible}
-          keyExtractor={(exercise) => String(exercise.id)}
-          keyboardShouldPersistTaps="handled"
-          ListHeaderComponent={
-            query && !exactMatch ? (
-              <Pressable onPress={addNew} android_ripple={{ color: colors.border }} style={styles.row}>
-                <Icon name="add" color={colors.accent} />
-                <AppText variant="bodyStrong" tone="accent" style={styles.flex}>
-                  Dodaj „{query}”
-                </AppText>
-              </Pressable>
-            ) : null
-          }
-          renderItem={({ item }) => (
-            <Pressable onPress={() => pick(item)} android_ripple={{ color: colors.border }} style={styles.row}>
-              <Icon name="fitness_center" size={20} color={colors.activity} />
-              <AppText style={styles.flex}>{item.name}</AppText>
-            </Pressable>
-          )}
-        />
+      <View style={styles.header}>
+        <AppText variant="heading" style={styles.flex}>
+          Dodaj ćwiczenie
+        </AppText>
+        <IconButton icon="close" accessibilityLabel="Zamknij" onPress={onClose} />
       </View>
+      <SearchField value={search} onChangeText={setSearch} placeholder="Szukaj lub wpisz nowe" />
+
+      <FlatList
+        data={visible}
+        keyExtractor={(exercise) => String(exercise.id)}
+        keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          query && !exactMatch ? (
+            <Pressable onPress={addNew} android_ripple={{ color: colors.border }} style={styles.row}>
+              <Icon name="add" color={colors.accent} />
+              <AppText variant="bodyStrong" tone="accent" style={styles.flex}>
+                Dodaj „{query}”
+              </AppText>
+            </Pressable>
+          ) : null
+        }
+        renderItem={({ item }) => (
+          <Pressable onPress={() => pick(item)} android_ripple={{ color: colors.border }} style={styles.row}>
+            <Icon name="fitness_center" size={20} color={colors.activity} />
+            <AppText style={styles.flex}>{item.name}</AppText>
+          </Pressable>
+        )}
+      />
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { height: '15%', backgroundColor: 'rgba(0, 0, 0, 0.45)' },
-  sheet: {
-    flex: 1,
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-  },
   header: { flexDirection: 'row', alignItems: 'center' },
   flex: { flex: 1 },
   row: {

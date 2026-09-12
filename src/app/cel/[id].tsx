@@ -1,13 +1,16 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
-import { Chip } from '@/components/chip';
+import { Chip, ChipRow } from '@/components/chip';
+import { DateChoice } from '@/components/date-choice';
 import { DatePickerSheet } from '@/components/date-picker-sheet';
+import { HeaderTextButton } from '@/components/header';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
 import { TextField } from '@/components/text-field';
 import { createGoal, deleteGoal, getGoal, updateGoal, type GoalInput, type GoalKind } from '@/db/goals';
 import { HABITS_SQL, type Habit } from '@/db/habits';
@@ -20,11 +23,10 @@ import {
 import { useQuery } from '@/db/use-query';
 import { WORKOUT_TYPES, WORKOUT_TYPE_KEYS, type WorkoutType } from '@/features/activity/workout-types';
 import { GOAL_KINDS, GOAL_KIND_KEYS } from '@/features/goals/goal-format';
+import { confirmDelete } from '@/lib/alerts';
 import { addDays, addMonths, formatDayShort, fromDateKey, toDateKey, type DateKey } from '@/lib/dates';
 import { formatDecimal, parseDecimal } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
-import { spacing } from '@/theme/theme';
-import { useTheme } from '@/theme/use-theme';
 
 /** Jednostka pola „cel” w formularzu (dla czasu wpisujemy godziny, w bazie są minuty). */
 function targetLabel(kind: GoalKind, measurement: MeasurementType, unit: string) {
@@ -52,8 +54,6 @@ export default function GoalEditScreen() {
 
   const db = useSQLiteContext();
   const today = useToday();
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const { rows: habits } = useQuery<Habit>(HABITS_SQL, [], ['habits']);
 
   const endOfMonth = toDateKey(new Date(fromDateKey(today).getFullYear(), fromDateKey(today).getMonth() + 1, 0));
@@ -70,7 +70,7 @@ export default function GoalEditScreen() {
   const [startDate, setStartDate] = useState<DateKey>(today);
   const [endDate, setEndDate] = useState<DateKey>(endOfMonth);
   const [loaded, setLoaded] = useState(isNew);
-  const [picker, setPicker] = useState<'start' | 'end' | null>(null);
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
 
   useEffect(() => {
     if (isNew) return;
@@ -132,108 +132,66 @@ export default function GoalEditScreen() {
     router.back();
   };
 
-  const confirmDelete = () =>
-    Alert.alert('Usunąć cel?', title, [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Usuń',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteGoal(db, goalId);
-          router.back();
-        },
-      },
-    ]);
-
-  const endOptions = [
-    { label: 'Koniec miesiąca', date: endOfMonth },
-    { label: 'Za 30 dni', date: addDays(today, 29) },
-    { label: 'Za 3 miesiące', date: addMonths(today, 3) },
-    { label: 'Koniec roku', date: endOfYear },
-  ];
-  const customEnd = !endOptions.some((option) => option.date === endDate);
+  const remove = () =>
+    confirmDelete('Usunąć cel?', title, async () => {
+      await deleteGoal(db, goalId);
+      router.back();
+    });
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: isNew ? 'Nowy cel' : 'Cel',
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} hitSlop={8} accessibilityRole="button">
-              <AppText variant="bodyStrong" tone={canSave ? 'accent' : 'textMuted'}>
-                Zapisz
-              </AppText>
-            </Pressable>
-          ),
-        }}
-      />
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScrollScreen title={isNew ? 'Nowy cel' : 'Cel'} headerRight={<HeaderTextButton onPress={save} disabled={!canSave} />}>
         {loaded ? (
           <>
             <TextField label="Nazwa" value={title} onChangeText={setTitle} placeholder="np. 100 km biegu we wrześniu" autoFocus={isNew} />
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Co liczymy
-              </AppText>
-              <View style={styles.chips}>
+            <Section title="Co liczymy">
+              <ChipRow>
                 {GOAL_KIND_KEYS.map((key) => (
                   <Chip key={key} label={GOAL_KINDS[key].label} icon={GOAL_KINDS[key].icon} selected={kind === key} onPress={() => setKind(key)} />
                 ))}
-              </View>
+              </ChipRow>
               <AppText variant="caption" tone="textMuted">
                 {GOAL_KINDS[kind].hint}
               </AppText>
-            </View>
+            </Section>
 
             {kind === 'distance' || kind === 'workouts' || kind === 'minutes' ? (
-              <View style={styles.section}>
-                <AppText variant="label" tone="textSecondary">
-                  Rodzaj treningu
-                </AppText>
-                <View style={styles.chips}>
+              <Section title="Rodzaj treningu">
+                <ChipRow>
                   <Chip label="Wszystkie" selected={workoutType === null} onPress={() => setWorkoutType(null)} />
                   {WORKOUT_TYPE_KEYS.filter((type) => kind !== 'distance' || WORKOUT_TYPES[type].hasDistance).map((type) => (
                     <Chip key={type} label={WORKOUT_TYPES[type].label} selected={workoutType === type} onPress={() => setWorkoutType(type)} />
                   ))}
-                </View>
-              </View>
+                </ChipRow>
+              </Section>
             ) : null}
 
             {kind === 'habit' ? (
-              <View style={styles.section}>
-                <AppText variant="label" tone="textSecondary">
-                  Nawyk
-                </AppText>
+              <Section title="Nawyk">
                 {habits.length ? (
-                  <View style={styles.chips}>
+                  <ChipRow>
                     {habits.map((habit) => (
                       <Chip key={habit.id} label={`${habit.icon} ${habit.name}`} selected={habitId === habit.id} onPress={() => setHabitId(habit.id)} />
                     ))}
-                  </View>
+                  </ChipRow>
                 ) : (
                   <AppText variant="caption" tone="textMuted">
                     Najpierw dodaj nawyk w zakładce Nawyki.
                   </AppText>
                 )}
-              </View>
+              </Section>
             ) : null}
 
             {kind === 'measurement' ? (
               <>
-                <View style={styles.section}>
-                  <AppText variant="label" tone="textSecondary">
-                    Pomiar
-                  </AppText>
-                  <View style={styles.chips}>
+                <Section title="Pomiar">
+                  <ChipRow>
                     {MEASUREMENT_TYPE_KEYS.map((key) => (
                       <Chip key={key} label={MEASUREMENT_TYPES[key].label} selected={measurement === key} onPress={() => setMeasurement(key)} />
                     ))}
-                  </View>
-                </View>
+                  </ChipRow>
+                </Section>
                 <TextField
                   label={`Wartość na start (${MEASUREMENT_TYPES[measurement].unit})`}
                   value={startText}
@@ -258,22 +216,20 @@ export default function GoalEditScreen() {
               maxLength={8}
             />
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Termin
-              </AppText>
-              <View style={styles.chips}>
-                {endOptions.map((option) => (
-                  <Chip key={option.label} label={option.label} selected={endDate === option.date} onPress={() => setEndDate(option.date)} />
-                ))}
-                <Chip
-                  label={customEnd ? formatDayShort(endDate, today) : 'Inna data'}
-                  icon="calendar_month"
-                  selected={customEnd}
-                  onPress={() => setPicker('end')}
-                />
-              </View>
-              <Pressable onPress={() => setPicker('start')} hitSlop={8} accessibilityRole="button">
+            <Section title="Termin">
+              <DateChoice
+                value={endDate}
+                onChange={(day) => day && setEndDate(day)}
+                today={today}
+                pickerTitle="Termin"
+                presets={[
+                  { label: 'Koniec miesiąca', date: endOfMonth },
+                  { label: 'Za 30 dni', date: addDays(today, 29) },
+                  { label: 'Za 3 miesiące', date: addMonths(today, 3) },
+                  { label: 'Koniec roku', date: endOfYear },
+                ]}
+              />
+              <Pressable onPress={() => setStartPickerOpen(true)} hitSlop={8} accessibilityRole="button">
                 <AppText variant="caption" tone="textSecondary">
                   Liczone od: {formatDayShort(startDate, today)} (zmień)
                 </AppText>
@@ -283,27 +239,21 @@ export default function GoalEditScreen() {
                   Termin musi być po dacie startu.
                 </AppText>
               ) : null}
-            </View>
+            </Section>
 
-            {!isNew ? <Button label="Usuń cel" variant="danger" icon="delete" onPress={confirmDelete} /> : null}
+            {!isNew ? <Button label="Usuń cel" variant="danger" icon="delete" onPress={remove} /> : null}
           </>
         ) : null}
-      </ScrollView>
+      </ScrollScreen>
       <DatePickerSheet
-        visible={picker !== null}
-        title={picker === 'start' ? 'Liczone od' : 'Termin'}
+        visible={startPickerOpen}
+        title="Liczone od"
         today={today}
-        value={picker === 'start' ? startDate : endDate}
-        onChange={(day) => day && (picker === 'start' ? setStartDate(day) : setEndDate(day))}
-        onClose={() => setPicker(null)}
+        value={startDate}
+        onChange={(day) => day && setStartDate(day)}
+        onClose={() => setStartPickerOpen(false)}
         clearable={false}
       />
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
-  section: { gap: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-});

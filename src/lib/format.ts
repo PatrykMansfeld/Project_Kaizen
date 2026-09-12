@@ -30,3 +30,14 @@ export function parseDecimal(text: string) {
   if (normalized === '') return null;
   return /^\d+(\.\d+)?$/.test(normalized) ? Number(normalized) : NaN;
 }
+
+/** Pierwsza litera wielka: „czwartek, 10 września” → „Czwartek, 10 września”. */
+export function capitalize(text: string) {
+  return text ? text[0].toUpperCase() + text.slice(1) : text;
+}
+
+/** Zmiana ze znakiem: „+2”, „−1,5 kg”, „±0” (minus typograficzny). */
+export function formatSigned(value: number, format: (absolute: number) => string) {
+  const sign = value > 0 ? '+' : value < 0 ? '−' : '±';
+  return `${sign}${format(Math.abs(value))}`;
+}

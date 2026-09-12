@@ -1,36 +1,41 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { DatePickerSheet } from '@/components/date-picker-sheet';
+import { Chip, ChipRow } from '@/components/chip';
+import { DateChoice } from '@/components/date-choice';
+import { HeaderTextButton } from '@/components/header';
+import { PromptSheet } from '@/components/prompt-sheet';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
 import { TextField } from '@/components/text-field';
 import { TimePickerSheet } from '@/components/time-picker-sheet';
+import { PROJECTS_SQL, createProject, type Project } from '@/db/projects';
+import { getSubtasks, replaceSubtasks } from '@/db/subtasks';
+import { getTaskTagIds, setTaskTags } from '@/db/tags';
 import {
   PRIORITY_LABELS,
+  REPEAT_LABELS,
   createTask,
   deleteTask,
   getTask,
-  REPEAT_LABELS,
   updateTask,
   type Priority,
   type Repeat,
   type TaskInput,
 } from '@/db/tasks';
-import { getSubtasks, replaceSubtasks } from '@/db/subtasks';
-import { getTaskTagIds, setTaskTags } from '@/db/tags';
-import { notificationsSupported, requestPermission } from '@/features/reminders/reminders';
+import { useQuery } from '@/db/use-query';
+import { requestPermissionOrWarn } from '@/features/reminders/permission';
+import { EXPO_GO_NOTICE, notificationsSupported } from '@/features/reminders/reminders';
 import { TagPicker } from '@/features/tags/tags';
 import { priorityColor } from '@/features/tasks/priority';
 import { SubtaskList, newSubtaskKey, type SubtaskDraft } from '@/features/tasks/subtask-list';
-import { addDays, formatDayShort, isDateKey, type DateKey } from '@/lib/dates';
+import { confirmDelete } from '@/lib/alerts';
+import { addDays, isDateKey, type DateKey } from '@/lib/dates';
 import { useAutosave } from '@/lib/use-autosave';
 import { useToday } from '@/lib/use-today';
-import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 const PRIORITIES: Priority[] = [0, 1, 2, 3];
@@ -41,17 +46,19 @@ function subtaskInputs(items: SubtaskDraft[]) {
   return items.filter((item) => item.title.trim()).map((item) => ({ title: item.title.trim(), done: item.done }));
 }
 
-/** Nowe zadanie: /zadanie/nowe (opcjonalnie ?due=2026-09-10), edycja: /zadanie/123. */
+/** Nowe zadanie: /zadanie/nowe (opcjonalnie ?due=2026-09-10&project=2), edycja: /zadanie/123. */
 export default function TaskEditScreen() {
-  const { id, due: initialDue } = useLocalSearchParams<{ id: string; due?: string }>();
+  const { id, due: initialDue, project: initialProject } = useLocalSearchParams<{
+    id: string;
+    due?: string;
+    project?: string;
+  }>();
   const isNew = id === 'nowe';
   const taskId = Number(id);
 
   const db = useSQLiteContext();
   const today = useToday();
-  const tomorrow = addDays(today, 1);
   const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
 
   const [form, setForm] = useState<TaskInput>({
     title: '',
@@ -60,12 +67,14 @@ export default function TaskEditScreen() {
     due_date: isDateKey(initialDue) ? initialDue : null,
     due_time: null,
     repeat: null,
+    project_id: initialProject && /^\d+$/.test(initialProject) ? Number(initialProject) : null,
   });
-  const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [subtasks, setSubtasks] = useState<SubtaskDraft[]>([]);
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [loaded, setLoaded] = useState(isNew);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [timePickerOpen, setTimePickerOpen] = useState(false);
+  const [projectNameOpen, setProjectNameOpen] = useState(false);
+  const { rows: projects } = useQuery<Project>(PROJECTS_SQL, [], ['projects', 'tasks']);
 
   useEffect(() => {
     if (isNew) return;
@@ -82,6 +91,7 @@ export default function TaskEditScreen() {
           due_date: task.due_date,
           due_time: task.due_time,
           repeat: task.repeat,
+          project_id: task.project_id,
         });
         setSubtasks(subtaskRows.map((row) => ({ key: newSubtaskKey(), title: row.title, done: row.done === 1 })));
         setTagIds(taskTagIds);
@@ -108,19 +118,11 @@ export default function TaskEditScreen() {
   const setDue = (due_date: DateKey | null) =>
     update(due_date ? { due_date } : { due_date, repeat: null, due_time: null });
 
-  const setTime = async (due_time: string) => {
+  const setTime = (due_time: string) => {
     update({ due_time });
-    const permission = await requestPermission();
-    if (permission === 'denied') {
-      Alert.alert(
-        'Powiadomienia są zablokowane',
-        'Godzina zostanie zapisana, ale przypomnienie nie przyjdzie, dopóki nie włączysz powiadomień w ustawieniach telefonu.',
-        [
-          { text: 'Później', style: 'cancel' },
-          { text: 'Otwórz ustawienia', onPress: () => Linking.openSettings() },
-        ],
-      );
-    }
+    void requestPermissionOrWarn(
+      'Godzina zostanie zapisana, ale przypomnienie nie przyjdzie, dopóki nie włączysz powiadomień w ustawieniach telefonu.',
+    );
   };
 
   const save = async () => {
@@ -141,43 +143,21 @@ export default function TaskEditScreen() {
     router.back();
   };
 
-  const confirmDelete = () => {
-    Alert.alert('Usunąć zadanie?', form.title, [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Usuń',
-        style: 'destructive',
-        onPress: async () => {
-          await flushSubtasks();
-          await deleteTask(db, taskId);
-          router.back();
-        },
-      },
-    ]);
-  };
+  const remove = () =>
+    confirmDelete('Usunąć zadanie?', form.title, async () => {
+      await flushSubtasks();
+      await deleteTask(db, taskId);
+      router.back();
+    });
 
   const due = form.due_date;
-  const customDue = due !== null && due !== today && due !== tomorrow;
+  const subtasksDone = subtasks.filter((item) => item.done).length;
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: isNew ? 'Nowe zadanie' : 'Zadanie',
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} hitSlop={8} accessibilityRole="button">
-              <AppText variant="bodyStrong" tone={canSave ? 'accent' : 'textMuted'}>
-                Zapisz
-              </AppText>
-            </Pressable>
-          ),
-        }}
-      />
-
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScrollScreen
+        title={isNew ? 'Nowe zadanie' : 'Zadanie'}
+        headerRight={<HeaderTextButton onPress={save} disabled={!canSave} />}>
         {loaded ? (
           <>
             <TextField
@@ -189,37 +169,27 @@ export default function TaskEditScreen() {
               returnKeyType="done"
             />
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Podzadania
-                {subtasks.length ? ` · ${subtasks.filter((item) => item.done).length}/${subtasks.length}` : ''}
-              </AppText>
+            <Section title={subtasks.length ? `Podzadania · ${subtasksDone}/${subtasks.length}` : 'Podzadania'}>
               <SubtaskList items={subtasks} onChange={changeSubtasks} />
-            </View>
+            </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Termin
-              </AppText>
-              <View style={styles.chips}>
-                <Chip label="Brak" selected={due === null} onPress={() => setDue(null)} />
-                <Chip label="Dziś" selected={due === today} onPress={() => setDue(today)} />
-                <Chip label="Jutro" selected={due === tomorrow} onPress={() => setDue(tomorrow)} />
-                <Chip
-                  label={customDue ? formatDayShort(due, today) : 'Inna data'}
-                  icon="calendar_month"
-                  selected={customDue}
-                  onPress={() => setPickerOpen(true)}
-                />
-              </View>
-            </View>
+            <Section title="Termin">
+              <DateChoice
+                value={due}
+                onChange={setDue}
+                today={today}
+                pickerTitle="Termin"
+                presets={[
+                  { label: 'Brak', date: null },
+                  { label: 'Dziś', date: today },
+                  { label: 'Jutro', date: addDays(today, 1) },
+                ]}
+              />
+            </Section>
 
             {due ? (
-              <View style={styles.section}>
-                <AppText variant="label" tone="textSecondary">
-                  Godzina i przypomnienie
-                </AppText>
-                <View style={styles.chips}>
+              <Section title="Godzina i przypomnienie">
+                <ChipRow>
                   <Chip label="Bez godziny" selected={form.due_time === null} onPress={() => update({ due_time: null })} />
                   <Chip
                     label={form.due_time ?? 'Ustaw godzinę'}
@@ -227,22 +197,19 @@ export default function TaskEditScreen() {
                     selected={form.due_time !== null}
                     onPress={() => setTimePickerOpen(true)}
                   />
-                </View>
+                </ChipRow>
                 {form.due_time ? (
                   <AppText variant="caption" tone="textMuted">
                     {notificationsSupported
                       ? 'O tej godzinie dostaniesz przypomnienie (chyba że zadanie będzie już zrobione).'
-                      : 'W Expo Go powiadomienia nie działają — przypomnienie zacznie przychodzić po zainstalowaniu aplikacji (APK).'}
+                      : EXPO_GO_NOTICE}
                   </AppText>
                 ) : null}
-              </View>
+              </Section>
             ) : null}
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Powtarzanie
-              </AppText>
-              <View style={styles.chips}>
+            <Section title="Powtarzanie">
+              <ChipRow>
                 <Chip label="Nie" selected={form.repeat === null} onPress={() => setRepeat(null)} />
                 {REPEATS.map((repeat) => (
                   <Chip
@@ -253,19 +220,16 @@ export default function TaskEditScreen() {
                     onPress={() => setRepeat(repeat)}
                   />
                 ))}
-              </View>
+              </ChipRow>
               {form.repeat ? (
                 <AppText variant="caption" tone="textMuted">
                   Po odhaczeniu zadanie przeskoczy na kolejny termin, a wykonanie trafi do „Zrobionych”.
                 </AppText>
               ) : null}
-            </View>
+            </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Priorytet
-              </AppText>
-              <View style={styles.chips}>
+            <Section title="Priorytet">
+              <ChipRow>
                 {PRIORITIES.map((priority) => (
                   <Chip
                     key={priority}
@@ -276,15 +240,28 @@ export default function TaskEditScreen() {
                     onPress={() => update({ priority })}
                   />
                 ))}
-              </View>
-            </View>
+              </ChipRow>
+            </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Tagi
-              </AppText>
+            <Section title="Projekt">
+              <ChipRow>
+                <Chip label="Brak" selected={form.project_id === null} onPress={() => update({ project_id: null })} />
+                {projects.map((project) => (
+                  <Chip
+                    key={project.id}
+                    label={project.name}
+                    icon="folder"
+                    selected={form.project_id === project.id}
+                    onPress={() => update({ project_id: project.id })}
+                  />
+                ))}
+                <Chip label="Nowy projekt" icon="create_new_folder" selected={false} onPress={() => setProjectNameOpen(true)} />
+              </ChipRow>
+            </Section>
+
+            <Section title="Tagi">
               <TagPicker selected={tagIds} onChange={setTagIds} />
-            </View>
+            </Section>
 
             <TextField
               label="Notatki"
@@ -294,13 +271,19 @@ export default function TaskEditScreen() {
               multiline
             />
 
-            {!isNew ? (
-              <Button label="Usuń zadanie" variant="danger" icon="delete" onPress={confirmDelete} />
-            ) : null}
+            {!isNew ? <Button label="Usuń zadanie" variant="danger" icon="delete" onPress={remove} /> : null}
           </>
         ) : null}
-      </ScrollView>
+      </ScrollScreen>
 
+      <PromptSheet
+        visible={projectNameOpen}
+        title="Nowy projekt"
+        placeholder="np. Remont, Praca, Wakacje"
+        submitLabel="Utwórz"
+        onSubmit={async (name) => update({ project_id: await createProject(db, name) })}
+        onClose={() => setProjectNameOpen(false)}
+      />
       <TimePickerSheet
         visible={timePickerOpen}
         title="Godzina"
@@ -308,20 +291,6 @@ export default function TaskEditScreen() {
         onChange={setTime}
         onClose={() => setTimePickerOpen(false)}
       />
-      <DatePickerSheet
-        visible={pickerOpen}
-        title="Termin"
-        today={today}
-        value={due}
-        onChange={setDue}
-        onClose={() => setPickerOpen(false)}
-      />
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
-  section: { gap: spacing.sm },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-});

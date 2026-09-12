@@ -1,18 +1,21 @@
-import { Stack, router } from 'expo-router';
+import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Pressable, SectionList, StyleSheet, View } from 'react-native';
+import { SectionList, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { Card } from '@/components/card';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { StackHeader } from '@/components/screen';
 import { SearchField } from '@/components/search-field';
+import { Separator } from '@/components/separator';
 import { SEARCH_KINDS, searchEverything, type SearchKind, type SearchResult } from '@/features/search/search';
-import { formatDayShort, relativeDayLabel } from '@/lib/dates';
+import { formatDayRelative } from '@/lib/dates';
 import { normalizeForSearch, searchSnippet } from '@/lib/search';
 import { useToday } from '@/lib/use-today';
-import { radius, spacing, withAlpha } from '@/theme/theme';
+import { spacing, withAlpha } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 const MIN_LENGTH = 2;
@@ -66,7 +69,7 @@ export default function SearchScreen() {
 
   return (
     <>
-      <Stack.Screen options={{ title: 'Szukaj' }} />
+      <StackHeader title="Szukaj" />
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.field}>
           <SearchField
@@ -90,21 +93,18 @@ export default function SearchScreen() {
           renderItem={({ item }) => {
             const kind = SEARCH_KINDS[item.kind];
             return (
-              <Pressable
-                onPress={() => router.push(item.target)}
-                android_ripple={{ color: colors.border }}
-                style={[styles.row, { backgroundColor: colors.surface }]}>
+              <Card variant="row" style={styles.row} onPress={() => router.push(item.target)}>
                 <Icon name={kind.icon} size={20} color={colors[kind.color]} />
                 <View style={styles.body}>
                   <Highlighted text={item.title} query={query} lines={1} />
                   {item.body.trim() ? <Highlighted text={item.body} query={query} lines={2} /> : null}
                   {item.date ? (
                     <AppText variant="caption" tone="textMuted">
-                      {relativeDayLabel(item.date, today) ?? formatDayShort(item.date, today)}
+                      {formatDayRelative(item.date, today)}
                     </AppText>
                   ) : null}
                 </View>
-              </Pressable>
+              </Card>
             );
           }}
           ItemSeparatorComponent={Separator}
@@ -125,24 +125,11 @@ export default function SearchScreen() {
   );
 }
 
-function Separator() {
-  return <View style={styles.separator} />;
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
   field: { padding: spacing.lg, paddingBottom: spacing.sm },
   list: { flexGrow: 1, paddingHorizontal: spacing.lg },
   sectionHeader: { paddingTop: spacing.lg, paddingBottom: spacing.sm },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
+  row: { alignItems: 'flex-start' },
   body: { flex: 1, gap: 2 },
-  separator: { height: spacing.sm },
 });

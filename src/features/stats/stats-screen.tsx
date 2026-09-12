@@ -1,21 +1,38 @@
-import { Stack } from 'expo-router';
-import { useState, type ReactNode } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { IconButton } from '@/components/button';
+import { Card } from '@/components/card';
 import { Chip } from '@/components/chip';
+import { EmptyLine } from '@/components/empty-state';
 import { Icon, type IconName } from '@/components/icon';
-import { HABITS_SQL, HABIT_DONE_DAYS_SQL, HABIT_LOGS_RANGE_SQL, type Habit, type HabitLog } from '@/db/habits';
+import { PeriodNavigator } from '@/components/period-navigator';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
+import { CATEGORIES_SQL, FINANCE_TABLES, TRANSACTIONS_RANGE_SQL, type FinanceCategory, type Transaction } from '@/db/finance';
+import {
+  HABITS_SQL,
+  HABIT_DONE_DAYS_SQL,
+  HABIT_LOGS_RANGE_SQL,
+  countsByHabit,
+  doneDaysByHabit,
+  type Habit,
+  type HabitDoneDay,
+  type HabitLog,
+} from '@/db/habits';
+import { MOODS_RANGE_SQL, type MoodRow } from '@/db/journal';
+import { SLEEP_QUALITY, SLEEP_RANGE_SQL, type SleepLog } from '@/db/sleep';
 import { useQuery } from '@/db/use-query';
 import { WORKOUT_TYPES, WORKOUT_TYPE_KEYS, type WorkoutType } from '@/features/activity/workout-types';
+import { formatMoney, summarize } from '@/features/finance/money';
+import { useModuleVisible } from '@/features/modules/preferences';
 import { HabitIcon } from '@/features/habits/habit-card';
-import { formatStreak } from '@/features/habits/streak';
+import { formatStreak, formatWeeklyStreak } from '@/features/habits/streak';
 import { MOODS, moodOf } from '@/features/journal/moods';
 import { BarList, ColumnChart, Meter, StatRow, StatTile } from '@/features/stats/charts';
 import {
-  habitMonthStats,
+  habitsSummary,
   moodStats,
   periodRange,
   shiftPeriod,
@@ -33,10 +50,10 @@ import {
   weekdayIndex,
   type DateKey,
 } from '@/lib/dates';
-import { formatDecimal, formatDuration, plural } from '@/lib/format';
+import { capitalize, formatDecimal, formatDuration, formatSigned, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { paletteColor } from '@/theme/palette';
-import { radius, spacing } from '@/theme/theme';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 const MOOD_CHART_HEIGHT = 120;
@@ -47,27 +64,31 @@ type SectionProps = { range: PeriodRange; period: Period; today: DateKey };
 /** „+2 vs poprzedni tydzień” — albo nic, gdy nie ma z czym porównać. */
 function versus(diff: number | null, period: Period, format: (value: number) => string) {
   if (diff === null) return undefined;
-  const sign = diff > 0 ? '+' : diff < 0 ? '−' : '±';
-  return `${sign}${format(Math.abs(diff))} vs poprzedni ${period === 'week' ? 'tydzień' : 'miesiąc'}`;
+  return `${formatSigned(diff, format)} vs poprzedni ${period === 'week' ? 'tydzień' : 'miesiąc'}`;
 }
 
-/** Podpis okresu: „7–13 września” albo „wrzesień 2026”. */
+/** Podpis okresu: „7–13 września” albo „Wrzesień 2026”. */
 function periodTitle(period: Period, range: PeriodRange, today: DateKey) {
   if (period === 'week') return formatDateRange(range.from, range.to, today);
   const date = fromDateKey(range.from);
-  const month = MONTHS[date.getMonth()];
-  return `${month[0].toUpperCase()}${month.slice(1)} ${date.getFullYear()}`;
+  return `${capitalize(MONTHS[date.getMonth()])} ${date.getFullYear()}`;
 }
 
-export default function StatsScreen() {
+/** Podpis osi X wykresu dziennego: w tygodniu każdy dzień (pn…nd), w miesiącu co tydzień. */
+function dayAxisLabel(period: Period, days: DateKey[], index: number) {
+  if (period === 'week') return WEEKDAYS_SHORT[index];
+  return [0, 7, 14, 21, days.length - 1].includes(index) ? String(Number(days[index].slice(8))) : undefined;
+}
+
+export function StatsScreen() {
   const today = useToday();
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const [period, setPeriod] = useState<Period>('week');
   const [anchor, setAnchor] = useState<DateKey>(today);
   const range = periodRange(period, anchor);
   const isCurrent = range.from <= today && today <= range.to;
   const inFuture = range.from > today;
+  const sleepVisible = useModuleVisible('sen');
+  const financeVisible = useModuleVisible('finanse');
 
   const changePeriod = (next: Period) => {
     setPeriod(next);
@@ -75,80 +96,58 @@ export default function StatsScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Statystyki' }} />
-      <ScrollView
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
-        <View style={styles.periodChips}>
-          <Chip label="Tydzień" selected={period === 'week'} onPress={() => changePeriod('week')} />
-          <Chip label="Miesiąc" selected={period === 'month'} onPress={() => changePeriod('month')} />
-        </View>
-        <View style={styles.nav}>
-          <IconButton
-            icon="chevron_left"
-            accessibilityLabel={period === 'week' ? 'Poprzedni tydzień' : 'Poprzedni miesiąc'}
-            onPress={() => setAnchor(shiftPeriod(period, anchor, -1))}
-          />
-          <View style={styles.navTitle}>
-            <AppText variant="heading" style={styles.center}>
-              {periodTitle(period, range, today)}
-            </AppText>
-            {isCurrent ? (
-              <AppText variant="caption" tone="textSecondary">
-                {period === 'week' ? 'Ten tydzień' : 'Ten miesiąc'}
-              </AppText>
-            ) : null}
-          </View>
-          <IconButton
-            icon="chevron_right"
-            accessibilityLabel={period === 'week' ? 'Następny tydzień' : 'Następny miesiąc'}
-            color={isCurrent ? colors.border : colors.text}
-            onPress={() => !isCurrent && setAnchor(shiftPeriod(period, anchor, 1))}
-          />
-        </View>
-
-        {inFuture ? (
-          <AppText tone="textSecondary" style={styles.center}>
-            Ten okres jeszcze się nie zaczął.
-          </AppText>
-        ) : (
-          <>
-            <HabitsSection range={range} period={period} today={today} />
-            <TasksSection range={range} period={period} today={today} />
-            <ActivitySection range={range} period={period} today={today} />
-            <MoodSection range={range} period={period} today={today} />
-          </>
-        )}
-      </ScrollView>
-    </>
-  );
-}
-
-function Section({ icon, color, title, children }: { icon: IconName; color: string; title: string; children: ReactNode }) {
-  return (
-    <View style={styles.section}>
-      <View style={styles.sectionHeader}>
-        <Icon name={icon} size={18} color={color} />
-        <AppText variant="label" tone="textSecondary">
-          {title}
-        </AppText>
+    <ScrollScreen title="Statystyki">
+      <View style={styles.hub}>
+        <HubTile icon="lightbulb" label="Wnioski" onPress={() => router.push('/wnioski')} />
+        <HubTile icon="calendar_view_month" label="Rok w pikselach" onPress={() => router.push('/rok')} />
+        <HubTile icon="emoji_events" label="Osiągnięcia" onPress={() => router.push('/osiagniecia')} />
       </View>
-      {children}
-    </View>
+      <View style={styles.periodChips}>
+        <Chip label="Tydzień" selected={period === 'week'} onPress={() => changePeriod('week')} />
+        <Chip label="Miesiąc" selected={period === 'month'} onPress={() => changePeriod('month')} />
+      </View>
+      <View style={styles.nav}>
+        <PeriodNavigator
+          title={periodTitle(period, range, today)}
+          subtitle={isCurrent ? (period === 'week' ? 'Ten tydzień' : 'Ten miesiąc') : undefined}
+          onPrevious={() => setAnchor(shiftPeriod(period, anchor, -1))}
+          onNext={() => setAnchor(shiftPeriod(period, anchor, 1))}
+          canGoNext={!isCurrent}
+          unitLabel={
+            period === 'week'
+              ? { previous: 'Poprzedni tydzień', next: 'Następny tydzień' }
+              : { previous: 'Poprzedni miesiąc', next: 'Następny miesiąc' }
+          }
+        />
+      </View>
+
+      {inFuture ? (
+        <AppText tone="textSecondary" style={styles.center}>
+          Ten okres jeszcze się nie zaczął.
+        </AppText>
+      ) : (
+        <>
+          <HabitsSection range={range} period={period} today={today} />
+          <TasksSection range={range} period={period} today={today} />
+          <ActivitySection range={range} period={period} today={today} />
+          <MoodSection range={range} period={period} today={today} />
+          {sleepVisible ? <SleepSection range={range} period={period} today={today} /> : null}
+          {financeVisible ? <FinanceSection range={range} period={period} today={today} /> : null}
+        </>
+      )}
+    </ScrollScreen>
   );
 }
 
-function Card({ children }: { children: ReactNode }) {
+function HubTile({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
   const { colors } = useTheme();
-  return <View style={[styles.card, { backgroundColor: colors.surface }]}>{children}</View>;
-}
-
-function Empty({ text }: { text: string }) {
   return (
-    <AppText variant="caption" tone="textMuted">
-      {text}
-    </AppText>
+    <Card onPress={onPress} style={styles.hubTile}>
+      <Icon name={icon} size={22} color={colors.accent} />
+      <AppText variant="caption" numberOfLines={2} style={styles.center}>
+        {label}
+      </AppText>
+    </Card>
   );
 }
 
@@ -163,33 +162,20 @@ function HabitsSection({ range, period, today }: SectionProps) {
     { $from: range.prevFrom, $to: range.to },
     ['habit_logs'],
   );
-  const { rows: doneRows } = useQuery<Pick<HabitLog, 'habit_id' | 'date'>>(HABIT_DONE_DAYS_SQL, [], [
-    'habits',
-    'habit_logs',
-  ]);
+  const { rows: doneRows } = useQuery<HabitDoneDay>(HABIT_DONE_DAYS_SQL, [], ['habits', 'habit_logs']);
 
-  const statsFor = (from: DateKey, to: DateKey) =>
-    habits.map((habit) => {
-      const counts = new Map(logs.filter((log) => log.habit_id === habit.id).map((log) => [log.date, log.count]));
-      const doneDays = new Set(doneRows.filter((row) => row.habit_id === habit.id).map((row) => row.date));
-      return { habit, ...habitMonthStats(habit, counts, doneDays, from, to, today) };
-    });
-  const rate = (stats: ReturnType<typeof statsFor>) => {
-    const scheduled = stats.reduce((sum, stat) => sum + stat.scheduled, 0);
-    const done = stats.reduce((sum, stat) => sum + stat.done, 0);
-    return { scheduled, done, rate: scheduled ? done / scheduled : null };
-  };
-
-  const stats = statsFor(range.from, range.to);
-  const current = rate(stats);
-  const previous = rate(statsFor(range.prevFrom, range.prevTo));
+  const counts = countsByHabit(logs);
+  const doneDays = doneDaysByHabit(doneRows);
+  const current = habitsSummary(habits, counts, doneDays, range.from, range.to, today);
+  const previous = habitsSummary(habits, counts, doneDays, range.prevFrom, range.prevTo, today);
+  const stats = current.stats;
   const diff = current.rate !== null && previous.rate !== null ? Math.round((current.rate - previous.rate) * 100) : null;
   const top = stats.reduce<(typeof stats)[number] | null>((best, stat) => (!best || stat.best > best.best ? stat : best), null);
 
   return (
     <Section icon="check_circle" color={colors.habits} title="Nawyki">
       {habits.length === 0 ? (
-        <Empty text="Brak nawyków do podsumowania." />
+        <EmptyLine text="Brak nawyków do podsumowania." />
       ) : (
         <>
           <StatRow>
@@ -200,12 +186,12 @@ function HabitsSection({ range, period, today }: SectionProps) {
             />
             <StatTile
               label="Najlepsza seria"
-              value={top && top.best > 0 ? formatStreak(top.best) : '—'}
+              value={top && top.best > 0 ? (top.unit === 'weeks' ? formatWeeklyStreak(top.best) : formatStreak(top.best)) : '—'}
               detail={top && top.best > 0 ? `${top.habit.icon} ${top.habit.name}` : undefined}
             />
           </StatRow>
           <Card>
-            {stats.map(({ habit, rate: habitRate, done, scheduled, best }) => {
+            {stats.map(({ habit, rate: habitRate, done, scheduled, best, unit }) => {
               const color = paletteColor(habit.color, dark);
               return (
                 <View key={habit.id} style={styles.habitRow}>
@@ -218,8 +204,14 @@ function HabitsSection({ range, period, today }: SectionProps) {
                   </View>
                   <Meter value={habitRate ?? 0} color={color} />
                   <AppText variant="caption" tone="textMuted">
-                    {scheduled ? `${done} z ${scheduled} dni` : 'Brak dni do zrobienia'}
-                    {best > 0 ? ` · najlepsza seria ${plural(best, ['dzień', 'dni', 'dni'])}` : ''}
+                    {scheduled
+                      ? `${done} z ${unit === 'weeks' ? plural(scheduled, ['tygodnia', 'tygodni', 'tygodni']) : `${scheduled} dni`}`
+                      : unit === 'weeks'
+                        ? 'Pierwszy tydzień jeszcze trwa'
+                        : 'Brak dni do zrobienia'}
+                    {best > 0
+                      ? ` · najlepsza seria ${unit === 'weeks' ? `${best} tyg.` : plural(best, ['dzień', 'dni', 'dni'])}`
+                      : ''}
                   </AppText>
                 </View>
               );
@@ -327,7 +319,7 @@ function ActivitySection({ range, period }: SectionProps) {
   return (
     <Section icon="directions_run" color={colors.activity} title="Aktywność">
       {inRange.length === 0 ? (
-        <Empty text={`Brak treningów w tym ${period === 'week' ? 'tygodniu' : 'miesiącu'}.`} />
+        <EmptyLine text={`Brak treningów w tym ${period === 'week' ? 'tygodniu' : 'miesiącu'}.`} />
       ) : (
         <>
           <StatRow>
@@ -390,11 +382,7 @@ function shiftToMonday(day: DateKey) {
 function MoodSection({ range, period }: SectionProps) {
   const { colors } = useTheme();
   const [selected, setSelected] = useState<DateKey | null>(null);
-  const { rows: entries } = useQuery<{ date: DateKey; mood: number }>(
-    'SELECT date, mood FROM journal_entries WHERE mood IS NOT NULL AND date BETWEEN $from AND $to',
-    { $from: range.prevFrom, $to: range.to },
-    ['journal_entries'],
-  );
+  const { rows: entries } = useQuery<MoodRow>(MOODS_RANGE_SQL, { $from: range.prevFrom, $to: range.to }, ['journal_entries']);
 
   const current = entries.filter((entry) => entry.date >= range.from);
   const previous = entries.filter((entry) => entry.date <= range.prevTo);
@@ -402,14 +390,12 @@ function MoodSection({ range, period }: SectionProps) {
   const { counts, average } = moodStats(current.map((entry) => entry.mood));
   const previousAverage = moodStats(previous.map((entry) => entry.mood)).average;
   const days = range.days;
-  // Tydzień: podpis przy każdym dniu (pn…nd). Miesiąc: co tydzień — nie przy każdym dniu.
-  const labeled = new Set(period === 'week' ? days.map((_, index) => index) : [0, 7, 14, 21, days.length - 1]);
   const selectedMood = selected ? moodOf(byDay.get(selected) ?? null) : null;
 
   return (
     <Section icon="mood" color={colors.journal} title="Nastrój">
       {current.length === 0 ? (
-        <Empty text={`Brak ocen nastroju w tym ${period === 'week' ? 'tygodniu' : 'miesiącu'}. Dodasz je w dzienniku.`} />
+        <EmptyLine text={`Brak ocen nastroju w tym ${period === 'week' ? 'tygodniu' : 'miesiącu'}. Dodasz je w dzienniku.`} />
       ) : (
         <>
           <StatRow>
@@ -447,11 +433,7 @@ function MoodSection({ range, period }: SectionProps) {
                     return {
                       key: day,
                       value: mood,
-                      axisLabel: labeled.has(index)
-                        ? period === 'week'
-                          ? WEEKDAYS_SHORT[index]
-                          : String(Number(day.slice(8)))
-                        : undefined,
+                      axisLabel: dayAxisLabel(period, days, index),
                       accessibilityLabel: `${formatDayLong(day)}: ${mood ? moodOf(mood)?.label : 'brak oceny'}`,
                     };
                   })}
@@ -482,16 +464,134 @@ function MoodSection({ range, period }: SectionProps) {
   );
 }
 
+// ——— Sen ———————————————————————————————————————————————————————————————————
+
+function SleepSection({ range, period }: SectionProps) {
+  const { colors } = useTheme();
+  const [selected, setSelected] = useState<DateKey | null>(null);
+  const { rows } = useQuery<SleepLog>(SLEEP_RANGE_SQL, { $from: range.prevFrom, $to: range.to }, ['sleep_logs']);
+
+  const current = rows.filter((row) => row.date >= range.from);
+  const previous = rows.filter((row) => row.date <= range.prevTo);
+  const average = (list: number[]) => (list.length ? list.reduce((sum, value) => sum + value, 0) / list.length : null);
+  const avgMinutes = average(current.map((row) => row.duration_min));
+  const prevMinutes = average(previous.map((row) => row.duration_min));
+  const qualities = current.map((row) => row.quality).filter((value): value is number => value !== null);
+  const avgQuality = average(qualities);
+  const byDay = new Map(current.map((row) => [row.date, row]));
+  const maxHours = Math.max(9, ...current.map((row) => row.duration_min / 60));
+  const selectedEntry = selected ? byDay.get(selected) : undefined;
+
+  return (
+    <Section icon="bedtime" color={colors.accent} title="Sen">
+      {current.length === 0 ? (
+        <EmptyLine text="Brak zapisanego snu w tym okresie. Dodasz go na ekranie Dziś." />
+      ) : (
+        <>
+          <StatRow>
+            <StatTile
+              label="Średnio"
+              value={avgMinutes === null ? '—' : formatDuration(Math.round(avgMinutes))}
+              detail={
+                avgMinutes !== null && prevMinutes !== null
+                  ? versus(Math.round(avgMinutes - prevMinutes), period, formatDuration)
+                  : plural(current.length, ['noc', 'noce', 'nocy'])
+              }
+            />
+            <StatTile
+              label="Jakość"
+              value={avgQuality === null ? '—' : `${SLEEP_QUALITY[Math.round(avgQuality) - 1].emoji} ${formatDecimal(avgQuality, 1)}`}
+              detail="w skali 1–5"
+            />
+          </StatRow>
+          <Card>
+            <AppText variant="caption" tone="textSecondary">
+              {selectedEntry
+                ? `${formatDayLong(selectedEntry.date)}: ${formatDuration(selectedEntry.duration_min)} (${selectedEntry.bedtime}–${selectedEntry.wake_time})`
+                : 'Godziny snu w kolejnych nocach — stuknij słupek.'}
+            </AppText>
+            <ColumnChart
+              columns={range.days.map((day, index) => {
+                const entry = byDay.get(day);
+                return {
+                  key: day,
+                  value: entry ? entry.duration_min / 60 : 0,
+                  axisLabel: dayAxisLabel(period, range.days, index),
+                  accessibilityLabel: `${formatDayLong(day)}: ${entry ? formatDuration(entry.duration_min) : 'brak wpisu'}`,
+                };
+              })}
+              max={maxHours}
+              color={colors.accent}
+              height={120}
+              gridLines={[4, 6, 8]}
+              selectedKey={selected}
+              onSelect={(key) => setSelected(key === selected ? null : key)}
+            />
+          </Card>
+        </>
+      )}
+    </Section>
+  );
+}
+
+// ——— Wydatki ———————————————————————————————————————————————————————————————
+
+function FinanceSection({ range, period }: SectionProps) {
+  const { colors } = useTheme();
+  const { rows } = useQuery<Transaction>(TRANSACTIONS_RANGE_SQL, { $from: range.prevFrom, $to: range.to }, FINANCE_TABLES);
+  const { rows: categories } = useQuery<FinanceCategory>(CATEGORIES_SQL, [], ['finance_categories']);
+
+  const current = summarize(
+    rows.filter((row) => row.date >= range.from),
+    categories,
+  );
+  const previous = summarize(
+    rows.filter((row) => row.date <= range.prevTo),
+    categories,
+  );
+  const top = current.byCategory.filter((item) => item.amount > 0).slice(0, 5);
+
+  return (
+    <Section icon="payments" color={colors.finance} title="Wydatki">
+      {current.expenses === 0 && current.income === 0 ? (
+        <EmptyLine text="Brak wpisów w tym okresie. Wydatki dodasz na ekranie Dziś → Wydatki." />
+      ) : (
+        <>
+          <StatRow>
+            <StatTile
+              label="Wydatki"
+              value={formatMoney(current.expenses)}
+              detail={previous.expenses || current.expenses ? versus(current.expenses - previous.expenses, period, formatMoney) : undefined}
+            />
+            <StatTile label="Bilans" value={`${current.balance > 0 ? '+' : ''}${formatMoney(current.balance)}`} detail="przychody − wydatki" />
+          </StatRow>
+          {top.length > 0 ? (
+            <Card>
+              <BarList
+                items={top.map((item) => ({
+                  key: String(item.category?.id ?? 'none'),
+                  label: `${item.category?.icon ?? '📦'} ${item.category?.name ?? 'Bez kategorii'}`,
+                  value: item.amount,
+                  valueLabel: formatMoney(item.amount),
+                }))}
+                max={Math.max(...top.map((item) => item.amount), 1)}
+                color={colors.finance}
+              />
+            </Card>
+          ) : null}
+        </>
+      )}
+    </Section>
+  );
+}
+
 const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
+  hub: { flexDirection: 'row', gap: spacing.sm },
+  hubTile: { flex: 1, alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.md, paddingHorizontal: spacing.xs },
   periodChips: { flexDirection: 'row', justifyContent: 'center', gap: spacing.sm },
-  nav: { flexDirection: 'row', alignItems: 'center', marginTop: -spacing.md },
-  navTitle: { flex: 1, alignItems: 'center' },
+  nav: { marginTop: -spacing.md },
   center: { textAlign: 'center' },
   flex: { flex: 1 },
-  section: { gap: spacing.md },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  card: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.md },
   habitRow: { gap: spacing.xs },
   habitHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   doneRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },

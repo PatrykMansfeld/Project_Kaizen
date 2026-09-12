@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import type { SettingKey } from '@/db/settings';
 import { plural } from '@/lib/format';
 
 /**
@@ -7,7 +8,10 @@ import { plural } from '@/lib/format';
  * w obecnej bazie, więc stare kopie da się wczytać po zmianach schematu (nowe kolumny dostaną domyślne wartości).
  */
 
-/** Tabele w kopii, w kolejności wstawiania (rodzice przed dziećmi). Ustawienia nie trafiają do kopii. */
+/**
+ * Tabele w kopii, w kolejności wstawiania (rodzice przed dziećmi). Ustawienia urządzenia nie trafiają do kopii
+ * (poza BACKUP_SETTINGS), podobnie zdjęcia z notatek (to pliki, nie da się ich sensownie zapisać w JSON-ie).
+ */
 export const BACKUP_TABLES = [
   'exercises',
   'workouts',
@@ -15,6 +19,7 @@ export const BACKUP_TABLES = [
   'habits',
   'habit_logs',
   'tags',
+  'projects',
   'tasks',
   'subtasks',
   'task_tags',
@@ -25,7 +30,23 @@ export const BACKUP_TABLES = [
   'goals',
   'workout_templates',
   'template_sets',
+  'sleep_logs',
+  'weekly_reviews',
+  'finance_categories',
+  'recurring_bills',
+  'transactions',
+  'medications',
+  'medication_logs',
+  'skills',
+  'practice_sessions',
+  'home_chores',
+  'warranties',
+  'meters',
+  'meter_readings',
 ] as const;
+
+/** Ustawienia, które są danymi (a nie preferencjami telefonu) — trafiają do kopii. */
+const BACKUP_SETTINGS: SettingKey[] = ['monthly_budget'];
 
 type BackupTable = (typeof BACKUP_TABLES)[number];
 type Value = string | number | null;
@@ -39,6 +60,8 @@ export type Backup = {
   schemaVersion: number;
   exportedAt: string;
   data: Partial<Record<BackupTable, Row[]>>;
+  /** Wybrane ustawienia (BACKUP_SETTINGS); brak w kopiach sprzed ich dodania. */
+  settings?: Record<string, string>;
 };
 
 /** Błąd z komunikatem do pokazania użytkownikowi. */
@@ -49,6 +72,10 @@ export async function createBackup(db: SQLiteDatabase): Promise<Backup> {
   for (const table of BACKUP_TABLES) {
     data[table] = await db.getAllAsync<Row>(`SELECT * FROM ${table}`);
   }
+  const settingRows = await db.getAllAsync<{ key: string; value: string }>(
+    `SELECT key, value FROM settings WHERE key IN (${BACKUP_SETTINGS.map(() => '?').join(', ')})`,
+    BACKUP_SETTINGS,
+  );
   const version = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   return {
     app: 'kaizen',
@@ -56,6 +83,7 @@ export async function createBackup(db: SQLiteDatabase): Promise<Backup> {
     schemaVersion: version?.user_version ?? 0,
     exportedAt: new Date().toISOString(),
     data,
+    settings: Object.fromEntries(settingRows.map((row) => [row.key, row.value])),
   };
 }
 
@@ -102,6 +130,12 @@ export function parseBackup(text: string): Backup {
     exportedAt: typeof json.exportedAt === 'string' ? json.exportedAt : '',
     data,
   };
+  if (isObject(json.settings)) {
+    const settings = json.settings;
+    backup.settings = Object.fromEntries(
+      BACKUP_SETTINGS.filter((key) => typeof settings[key] === 'string').map((key) => [key, settings[key] as string]),
+    );
+  }
   checkReferences(backup);
   return backup;
 }
@@ -119,8 +153,15 @@ function checkReferences({ data }: Backup) {
     ['note_tags', 'note_id', 'notes'],
     ['note_tags', 'tag_id', 'tags'],
     ['goals', 'habit_id', 'habits'],
+    ['tasks', 'project_id', 'projects'],
     ['template_sets', 'template_id', 'workout_templates'],
     ['template_sets', 'exercise_id', 'exercises'],
+    ['transactions', 'category_id', 'finance_categories'],
+    ['transactions', 'bill_id', 'recurring_bills'],
+    ['recurring_bills', 'category_id', 'finance_categories'],
+    ['medication_logs', 'medication_id', 'medications'],
+    ['practice_sessions', 'skill_id', 'skills'],
+    ['meter_readings', 'meter_id', 'meters'],
   ];
   for (const [table, column, parent] of references) {
     const parentIds = ids(data[parent]);
@@ -140,6 +181,7 @@ export function backupSummary({ data }: Backup) {
     plural(data.journal_entries?.length ?? 0, ['wpis w dzienniku', 'wpisy w dzienniku', 'wpisów w dzienniku']),
     plural(data.workouts?.length ?? 0, ['trening', 'treningi', 'treningów']),
     plural(data.measurements?.length ?? 0, ['pomiar', 'pomiary', 'pomiarów']),
+    plural(data.transactions?.length ?? 0, ['wpis w finansach', 'wpisy w finansach', 'wpisów w finansach']),
   ];
   return parts.join(' · ');
 }
@@ -161,6 +203,15 @@ export async function restoreBackup(db: SQLiteDatabase, backup: Backup) {
     // Najpierw dzieci, potem rodzice — inaczej klucze obce zablokują usuwanie.
     for (const table of [...BACKUP_TABLES].reverse()) {
       if (toClear.has(table)) await db.runAsync(`DELETE FROM ${table}`);
+    }
+
+    // Ustawienia z kopii (tylko gdy kopia je zawiera — starsze nie ruszają obecnych).
+    if (backup.settings) {
+      for (const key of BACKUP_SETTINGS) {
+        await db.runAsync('DELETE FROM settings WHERE key = ?', key);
+        const value = backup.settings[key];
+        if (value !== undefined) await db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?)', key, value);
+      }
     }
 
     for (const table of tables) {

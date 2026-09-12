@@ -1,7 +1,9 @@
 import { addDatabaseChangeListener, useSQLiteContext, type SQLiteBindParams } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
 
-type Table =
+import { SETTING_SQL, type SettingKey } from './settings';
+
+export type Table =
   | 'workouts'
   | 'workout_sets'
   | 'exercises'
@@ -18,13 +20,28 @@ type Table =
   | 'measurements'
   | 'goals'
   | 'workout_templates'
-  | 'template_sets';
+  | 'template_sets'
+  | 'sleep_logs'
+  | 'weekly_reviews'
+  | 'projects'
+  | 'note_images'
+  | 'finance_categories'
+  | 'transactions'
+  | 'recurring_bills'
+  | 'medications'
+  | 'medication_logs'
+  | 'skills'
+  | 'practice_sessions'
+  | 'home_chores'
+  | 'warranties'
+  | 'meters'
+  | 'meter_readings';
 
 /**
  * Wykonuje SELECT i ponawia go automatycznie, gdy zmieni się któraś z tabel w `tables`.
  * Dzięki temu ekran listy sam się odświeża po zapisie na ekranie edycji.
  */
-export function useQuery<T>(sql: string, params: SQLiteBindParams, tables: Table[]) {
+export function useQuery<T>(sql: string, params: SQLiteBindParams, tables: readonly Table[]) {
   const db = useSQLiteContext();
   const [state, setState] = useState<{ rows: T[]; loaded: boolean }>({ rows: [], loaded: false });
 
@@ -66,4 +83,10 @@ export function useQuery<T>(sql: string, params: SQLiteBindParams, tables: Table
   }, [db, sql, paramsKey, tablesKey]);
 
   return state;
+}
+
+/** Wartość ustawienia (albo null), odświeżana po każdej zmianie. */
+export function useSetting(key: SettingKey) {
+  const { rows } = useQuery<{ value: string }>(SETTING_SQL, { $key: key }, ['settings']);
+  return rows[0]?.value ?? null;
 }

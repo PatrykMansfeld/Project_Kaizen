@@ -1,26 +1,20 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Card } from '@/components/card';
+import { EmojiBadge } from '@/components/emoji-badge';
 import { Icon } from '@/components/icon';
-import { nextHabitCount, type Habit } from '@/db/habits';
+import type { Habit } from '@/db/habits';
 import { WEEKDAYS_SHORT, type DateKey } from '@/lib/dates';
 import { paletteColor } from '@/theme/palette';
 import { radius, spacing, withAlpha } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 import { buttonLabel, isAmountHabit, progressLabel } from './amount';
-import { EVERY_DAY, formatDays, formatStreak, isScheduled } from './streak';
+import { EVERY_DAY, formatDays, formatStreak, formatWeeklyStreak, isScheduled } from './streak';
 
 export function HabitIcon({ icon, color, size = 44 }: { icon: string; color: string; size?: number }) {
-  return (
-    <View
-      style={[
-        styles.iconBubble,
-        { width: size, height: size, backgroundColor: withAlpha(color, 0.18) },
-      ]}>
-      <Text style={{ fontSize: size * 0.5 }}>{icon}</Text>
-    </View>
-  );
+  return <EmojiBadge emoji={icon} color={color} size={size} />;
 }
 
 type ProgressProps = {
@@ -70,30 +64,28 @@ type Props = {
   today: DateKey;
   counts: Map<DateKey, number>;
   streak: number;
-  onChangeCount: (date: DateKey, count: number) => void;
-  /** Nawyk ilościowy: otwarcie okienka z ilością dla danego dnia. */
-  onEditAmount: (date: DateKey) => void;
+  /** Stuknięcie / przytrzymanie dnia (logika w useHabitCounter). */
+  onTap: (date: DateKey) => void;
+  onHold: (date: DateKey) => void;
   onPress: () => void;
 };
 
-export function HabitCard({ habit, week, today, counts, streak, onChangeCount, onEditAmount, onPress }: Props) {
+export function HabitCard({ habit, week, today, counts, streak, onTap, onHold, onPress }: Props) {
   const { colors, dark } = useTheme();
   const color = paletteColor(habit.color, dark);
   const target = habit.target_per_day;
   const todayCount = counts.get(today) ?? 0;
   const amount = isAmountHabit(habit);
 
-  const increment = (date: DateKey) =>
-    amount ? onEditAmount(date) : onChangeCount(date, nextHabitCount(counts.get(date) ?? 0, target));
-  const decrement = (date: DateKey) => {
-    if (amount) return onEditAmount(date);
-    const count = counts.get(date) ?? 0;
-    if (count > 0) onChangeCount(date, count - 1);
-  };
-
+  // Nawyk tygodniowy: ile dni z celem w bieżącym tygodniu (heat-mapa pokazuje właśnie ten tydzień).
+  const weekDone = week.filter((day) => (counts.get(day) ?? 0) >= target).length;
   const meta = [
-    streak > 0 ? formatStreak(streak) : null,
-    habit.days_mask !== EVERY_DAY ? formatDays(habit.days_mask) : null,
+    streak > 0 ? (habit.weekly_target ? formatWeeklyStreak(streak) : formatStreak(streak)) : null,
+    habit.weekly_target
+      ? `${weekDone}/${habit.weekly_target} w tym tyg.`
+      : habit.days_mask !== EVERY_DAY
+        ? formatDays(habit.days_mask)
+        : null,
     amount ? progressLabel(todayCount, habit) : target > 1 ? `${target}× dziennie` : null,
     habit.reminder_time ? `🔔 ${habit.reminder_time}` : null,
   ]
@@ -101,10 +93,7 @@ export function HabitCard({ habit, week, today, counts, streak, onChangeCount, o
     .join(' · ');
 
   return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: colors.border }}
-      style={[styles.card, { backgroundColor: colors.surface }]}>
+    <Card onPress={onPress}>
       <View style={styles.header}>
         <HabitIcon icon={habit.icon} color={color} />
         <View style={styles.titles}>
@@ -122,8 +111,8 @@ export function HabitCard({ habit, week, today, counts, streak, onChangeCount, o
           target={target}
           color={color}
           label={buttonLabel(todayCount, habit)}
-          onPress={() => increment(today)}
-          onLongPress={() => decrement(today)}
+          onPress={() => onTap(today)}
+          onLongPress={() => onHold(today)}
         />
       </View>
 
@@ -137,8 +126,8 @@ export function HabitCard({ habit, week, today, counts, streak, onChangeCount, o
             <Pressable
               key={day}
               disabled={future}
-              onPress={() => increment(day)}
-              onLongPress={() => decrement(day)}
+              onPress={() => onTap(day)}
+              onLongPress={() => onHold(day)}
               accessibilityLabel={`${WEEKDAYS_SHORT[index]}: ${count} z ${target}`}
               style={styles.dayColumn}>
               <AppText
@@ -161,20 +150,13 @@ export function HabitCard({ habit, week, today, counts, streak, onChangeCount, o
           );
         })}
       </View>
-    </Pressable>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    gap: spacing.md,
-    padding: spacing.lg,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   titles: { flex: 1, gap: 2 },
-  iconBubble: { borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   progress: {
     borderRadius: radius.full,
     borderWidth: 2,

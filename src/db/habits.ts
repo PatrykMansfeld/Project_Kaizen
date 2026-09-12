@@ -1,5 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { groupBy } from '@/lib/collections';
 import type { DateKey } from '@/lib/dates';
 
 export type Habit = {
@@ -17,6 +18,8 @@ export type Habit = {
   reminder_time: string | null;
   /** Dni tygodnia: bit 0 = poniedziałek … bit 6 = niedziela (features/habits/streak.ts). */
   days_mask: number;
+  /** 1–7 = „tyle razy w tygodniu, w dowolne dni” (wtedy days_mask = codziennie); null = konkretne dni. */
+  weekly_target: number | null;
   sort_order: number;
   archived: 0 | 1;
   created_at: string;
@@ -24,7 +27,7 @@ export type Habit = {
 
 export type HabitInput = Pick<
   Habit,
-  'name' | 'icon' | 'color' | 'target_per_day' | 'unit' | 'reminder_time' | 'days_mask'
+  'name' | 'icon' | 'color' | 'target_per_day' | 'unit' | 'reminder_time' | 'days_mask' | 'weekly_target'
 >;
 
 export type HabitLog = { habit_id: number; date: DateKey; count: number };
@@ -36,11 +39,37 @@ export const ARCHIVED_HABITS_SQL = 'SELECT * FROM habits WHERE archived = 1 ORDE
 export const HABIT_LOGS_RANGE_SQL =
   'SELECT habit_id, date, count FROM habit_logs WHERE date BETWEEN $from AND $to';
 
-/** Dni, w których cel został osiągnięty — do liczenia serii. */
+/** Dni, w których cel został osiągnięty — do liczenia serii (tylko aktywne nawyki). */
 export const HABIT_DONE_DAYS_SQL = `
   SELECT l.habit_id, l.date
   FROM habit_logs l JOIN habits h ON h.id = l.habit_id
   WHERE h.archived = 0 AND l.count >= h.target_per_day`;
+
+/** Jak HABIT_DONE_DAYS_SQL, ale także z zarchiwizowanych nawyków (np. do osiągnięć). */
+export const ALL_HABIT_DONE_DAYS_SQL = `
+  SELECT l.habit_id, l.date
+  FROM habit_logs l JOIN habits h ON h.id = l.habit_id
+  WHERE l.count >= h.target_per_day`;
+
+export type HabitDoneDay = Pick<HabitLog, 'habit_id' | 'date'>;
+
+/** Wpisy z bazy → licznik dnia per nawyk: habit_id → (dzień → count). */
+export function countsByHabit(logs: readonly HabitLog[]) {
+  const result = new Map<number, Map<DateKey, number>>();
+  for (const [habitId, rows] of groupBy(logs, (log) => log.habit_id)) {
+    result.set(habitId, new Map(rows.map((row) => [row.date, row.count])));
+  }
+  return result;
+}
+
+/** Dni z osiągniętym celem per nawyk: habit_id → zbiór dni. */
+export function doneDaysByHabit(rows: readonly HabitDoneDay[]) {
+  const result = new Map<number, Set<DateKey>>();
+  for (const [habitId, days] of groupBy(rows, (row) => row.habit_id)) {
+    result.set(habitId, new Set(days.map((row) => row.date)));
+  }
+  return result;
+}
 
 export function getHabit(db: SQLiteDatabase, id: number) {
   return db.getFirstAsync<Habit>('SELECT * FROM habits WHERE id = ?', id);
@@ -54,14 +83,16 @@ function toParams(input: HabitInput) {
     $target: input.target_per_day,
     $unit: input.unit,
     $reminder: input.reminder_time,
-    $days: input.days_mask,
+    // Cel tygodniowy oznacza dowolne dni — harmonogram dni tygodnia wtedy nie obowiązuje.
+    $days: input.weekly_target ? 127 : input.days_mask,
+    $weekly: input.weekly_target ?? null,
   };
 }
 
 export function createHabit(db: SQLiteDatabase, input: HabitInput) {
   return db.runAsync(
-    `INSERT INTO habits (name, icon, color, target_per_day, unit, reminder_time, days_mask, sort_order)
-     VALUES ($name, $icon, $color, $target, $unit, $reminder, $days,
+    `INSERT INTO habits (name, icon, color, target_per_day, unit, reminder_time, days_mask, weekly_target, sort_order)
+     VALUES ($name, $icon, $color, $target, $unit, $reminder, $days, $weekly,
        (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM habits))`,
     toParams(input),
   );
@@ -70,7 +101,7 @@ export function createHabit(db: SQLiteDatabase, input: HabitInput) {
 export function updateHabit(db: SQLiteDatabase, id: number, input: HabitInput) {
   return db.runAsync(
     `UPDATE habits SET name = $name, icon = $icon, color = $color, target_per_day = $target, unit = $unit,
-       reminder_time = $reminder, days_mask = $days
+       reminder_time = $reminder, days_mask = $days, weekly_target = $weekly
      WHERE id = $id`,
     { ...toParams(input), $id: id },
   );

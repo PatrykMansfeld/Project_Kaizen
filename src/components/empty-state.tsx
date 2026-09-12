@@ -33,7 +33,17 @@ export function EmptyState({ icon, title, description, color }: Props) {
   );
 }
 
+/** Krótka informacja w miejscu pustej listy wewnątrz sekcji, np. „Brak zadań na ten dzień”. */
+export function EmptyLine({ text }: { text: string }) {
+  return (
+    <AppText variant="caption" tone="textMuted" style={styles.line}>
+      {text}
+    </AppText>
+  );
+}
+
 const styles = StyleSheet.create({
+  line: { paddingVertical: spacing.xs },
   container: {
     flex: 1,
     alignItems: 'center',

@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet } from 'react-native';
+import type { ReactNode } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Icon, type IconName } from '@/components/icon';
@@ -38,7 +39,21 @@ export function Chip({ label, selected, onPress, icon, iconColor }: Props) {
   );
 }
 
+/** Chipy obok siebie: zawijane do kolejnych linii albo (scroll) w jednym przewijanym rzędzie. */
+export function ChipRow({ children, scroll = false }: { children: ReactNode; scroll?: boolean }) {
+  if (scroll) {
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollRow}>
+        {children}
+      </ScrollView>
+    );
+  }
+  return <View style={styles.row}>{children}</View>;
+}
+
 const styles = StyleSheet.create({
+  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  scrollRow: { gap: spacing.sm },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',

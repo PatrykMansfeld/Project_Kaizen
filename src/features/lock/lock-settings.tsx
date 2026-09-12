@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Modal, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { BottomSheet, SheetActions } from '@/components/bottom-sheet';
 import { Button } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { radius, spacing } from '@/theme/theme';
-import { useTheme } from '@/theme/use-theme';
+import { Chip, ChipRow } from '@/components/chip';
+import { spacing } from '@/theme/theme';
 
 import {
   LOCK_GRACE_SECONDS,
@@ -52,7 +51,7 @@ export function LockSettings() {
             Blokada jest włączona. Aplikacja zablokuje się przy starcie i po {LOCK_GRACE_SECONDS} s w tle.
           </AppText>
           {biometricAvailable ? (
-            <View style={styles.row}>
+            <ChipRow>
               <Chip
                 label="Odblokowanie odciskiem palca"
                 icon="fingerprint"
@@ -62,7 +61,7 @@ export function LockSettings() {
                   setBiometric(!biometric);
                 }}
               />
-            </View>
+            </ChipRow>
           ) : null}
           <Button label="Zmień PIN" icon="lock" variant="secondary" onPress={() => setFlow('change')} />
           <Button label="Wyłącz blokadę" icon="lock_open" variant="danger" onPress={() => setFlow('disable')} />
@@ -93,16 +92,14 @@ type Step = 'verify' | 'new' | 'confirm';
 
 function PinFlowSheet({ flow, onClose, onDone }: { flow: Flow | null; onClose: () => void; onDone: () => void }) {
   return (
-    <Modal visible={flow !== null} transparent animationType="fade" statusBarTranslucent navigationBarTranslucent onRequestClose={onClose}>
+    <BottomSheet visible={flow !== null} onClose={onClose}>
       {flow ? <PinFlow flow={flow} onClose={onClose} onDone={onDone} /> : null}
-    </Modal>
+    </BottomSheet>
   );
 }
 
 /** Ustawienie, zmiana albo wyłączenie PIN-u — z potwierdzeniem obecnego PIN-u, gdzie trzeba. */
 function PinFlow({ flow, onClose, onDone }: { flow: Flow; onClose: () => void; onDone: () => void }) {
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<Step>(flow === 'setup' ? 'new' : 'verify');
   const [pin, setPinValue] = useState('');
   const [first, setFirst] = useState('');
@@ -163,39 +160,20 @@ function PinFlow({ flow, onClose, onDone }: { flow: Flow; onClose: () => void; o
   };
 
   return (
-    <View style={styles.sheetBackdrop}>
-      <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.lg }]}>
-        <AppText variant="heading" style={styles.center}>
-          {titles[step]}
-        </AppText>
-        <PinPad value={pin} onChange={change} length={length} error={error} />
-        <View style={styles.actions}>
-          <View style={styles.flex}>
-            <Button label="Anuluj" variant="secondary" onPress={onClose} />
-          </View>
-          {step === 'new' ? (
-            <View style={styles.flex}>
-              <Button label="Dalej" onPress={finishNew} disabled={pin.length < PIN_MIN} />
-            </View>
-          ) : null}
-        </View>
-      </View>
-    </View>
+    <>
+      <AppText variant="heading" style={styles.center}>
+        {titles[step]}
+      </AppText>
+      <PinPad value={pin} onChange={change} length={length} error={error} />
+      <SheetActions>
+        <Button label="Anuluj" variant="secondary" onPress={onClose} />
+        {step === 'new' ? <Button label="Dalej" onPress={finishNew} disabled={pin.length < PIN_MIN} /> : null}
+      </SheetActions>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
   container: { gap: spacing.md },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.45)' },
-  sheet: {
-    gap: spacing.lg,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-  },
   center: { textAlign: 'center' },
-  actions: { flexDirection: 'row', gap: spacing.md },
-  flex: { flex: 1 },
 });

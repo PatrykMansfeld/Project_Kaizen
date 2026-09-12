@@ -1,24 +1,23 @@
 import Constants from 'expo-constants';
-import { Stack } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState, type ReactNode } from 'react';
-import { Alert, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, StyleSheet } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { Card } from '@/components/card';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
 import { BackupError, backupSummary, restoreBackup } from '@/db/backup';
-import { SETTING_SQL } from '@/db/settings';
-import { useQuery } from '@/db/use-query';
+import { useSetting } from '@/db/use-query';
+import { AppearanceSettings } from '@/features/appearance/appearance-settings';
 import { exportBackup, pickBackup } from '@/features/backup/backup-file';
 import { LockSettings } from '@/features/lock/lock-settings';
 import { ReminderSettings } from '@/features/reminders/reminder-settings';
-import { ReviewSettings } from '@/features/reminders/review-settings';
+import { ReviewSettings, WeeklyReviewSettings } from '@/features/reminders/review-settings';
 import { TagManager } from '@/features/tags/tags';
 import { diffDays, formatDayShort, formatTimestamp, toDateKey } from '@/lib/dates';
 import { useToday } from '@/lib/use-today';
-import { radius, spacing } from '@/theme/theme';
-import { useTheme } from '@/theme/use-theme';
 
 function errorMessage(error: unknown) {
   return error instanceof BackupError ? error.message : 'Coś poszło nie tak. Spróbuj ponownie.';
@@ -27,12 +26,9 @@ function errorMessage(error: unknown) {
 export default function SettingsScreen() {
   const db = useSQLiteContext();
   const today = useToday();
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
 
-  const { rows } = useQuery<{ value: string }>(SETTING_SQL, { $key: 'last_export_at' }, ['settings']);
-  const lastExport = rows[0]?.value ?? null;
+  const lastExport = useSetting('last_export_at');
   const daysSinceExport = lastExport ? diffDays(toDateKey(new Date(lastExport)), today) : null;
 
   const runExport = async () => {
@@ -82,66 +78,63 @@ export default function SettingsScreen() {
   };
 
   return (
-    <>
-      <Stack.Screen options={{ title: 'Ustawienia' }} />
-      <ScrollView
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
-        <Section title="Kopia zapasowa">
-          <AppText tone="textSecondary">
-            Dane są zapisane tylko w tym telefonie. Eksportuj je co jakiś czas do pliku, np. na Dysk Google, żeby
-            nie stracić ich przy zmianie lub utracie telefonu.
-          </AppText>
-          <AppText
-            variant="caption"
-            tone={daysSinceExport === null || daysSinceExport > 7 ? 'warning' : 'textSecondary'}>
-            {lastExport
-              ? `Ostatni eksport: ${formatTimestamp(lastExport, today).toLowerCase()}`
-              : 'Nie zrobiono jeszcze żadnej kopii.'}
-          </AppText>
-          <Button label="Eksportuj dane" icon="upload" onPress={runExport} disabled={busy} />
-          <Button label="Przywróć z pliku" icon="download" variant="secondary" onPress={runImport} disabled={busy} />
-        </Section>
-
-        <Section title="Blokada aplikacji">
-          <LockSettings />
-        </Section>
-
-        <Section title="Podsumowanie dnia">
-          <ReviewSettings />
-        </Section>
-
-        <Section title="Przypomnienia">
-          <ReminderSettings />
-        </Section>
-
-        <Section title="Tagi">
-          <TagManager />
-        </Section>
-
-        <AppText variant="caption" tone="textMuted" style={styles.version}>
-          Kaizen {Constants.expoConfig?.version ?? ''}
+    <ScrollScreen title="Ustawienia">
+      <SettingsSection title="Kopia zapasowa">
+        <AppText tone="textSecondary">
+          Dane są zapisane tylko w tym telefonie. Eksportuj je co jakiś czas do pliku, np. na Dysk Google, żeby
+          nie stracić ich przy zmianie lub utracie telefonu. Zdjęcia z notatek nie trafiają do kopii.
         </AppText>
-      </ScrollView>
-    </>
+        <AppText
+          variant="caption"
+          tone={daysSinceExport === null || daysSinceExport > 7 ? 'warning' : 'textSecondary'}>
+          {lastExport
+            ? `Ostatni eksport: ${formatTimestamp(lastExport, today).toLowerCase()}`
+            : 'Nie zrobiono jeszcze żadnej kopii.'}
+        </AppText>
+        <Button label="Eksportuj dane" icon="upload" onPress={runExport} disabled={busy} />
+        <Button label="Przywróć z pliku" icon="download" variant="secondary" onPress={runImport} disabled={busy} />
+      </SettingsSection>
+
+      <SettingsSection title="Wygląd">
+        <AppearanceSettings />
+      </SettingsSection>
+
+      <SettingsSection title="Blokada aplikacji">
+        <LockSettings />
+      </SettingsSection>
+
+      <SettingsSection title="Podsumowanie dnia">
+        <ReviewSettings />
+      </SettingsSection>
+
+      <SettingsSection title="Przegląd tygodnia">
+        <WeeklyReviewSettings />
+      </SettingsSection>
+
+      <SettingsSection title="Przypomnienia">
+        <ReminderSettings />
+      </SettingsSection>
+
+      <SettingsSection title="Tagi">
+        <TagManager />
+      </SettingsSection>
+
+      <AppText variant="caption" tone="textMuted" style={styles.version}>
+        Kaizen {Constants.expoConfig?.version ?? ''}
+      </AppText>
+    </ScrollScreen>
   );
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  const { colors } = useTheme();
+/** Sekcja ustawień: podpis i treść na karcie. */
+function SettingsSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <View style={styles.section}>
-      <AppText variant="label" tone="textSecondary">
-        {title}
-      </AppText>
-      <View style={[styles.card, { backgroundColor: colors.surface }]}>{children}</View>
-    </View>
+    <Section title={title}>
+      <Card>{children}</Card>
+    </Section>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
-  section: { gap: spacing.sm },
-  card: { gap: spacing.md, padding: spacing.lg, borderRadius: radius.md },
   version: { textAlign: 'center' },
 });

@@ -1,27 +1,33 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
-import { Chip } from '@/components/chip';
-import { Icon } from '@/components/icon';
+import { Chip, ChipRow } from '@/components/chip';
+import { ColorSwatches } from '@/components/color-swatches';
+import { EmojiPicker } from '@/components/emoji-picker';
+import { HeaderTextButton } from '@/components/header';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
 import { TextField } from '@/components/text-field';
 import { TimePickerSheet } from '@/components/time-picker-sheet';
 import { createHabit, deleteHabit, getHabit, setHabitArchived, updateHabit, type HabitInput } from '@/db/habits';
 import { UNIT_SUGGESTIONS } from '@/features/habits/amount';
 import { HabitIcon } from '@/features/habits/habit-card';
 import { HABIT_ICONS } from '@/features/habits/icons';
-import { notificationsSupported, requestPermission } from '@/features/reminders/reminders';
-import { EVERY_DAY } from '@/features/habits/streak';
+import { EVERY_DAY, WORKDAYS } from '@/features/habits/streak';
+import { requestPermissionOrWarn } from '@/features/reminders/permission';
+import { EXPO_GO_NOTICE, notificationsSupported } from '@/features/reminders/reminders';
+import { confirmDelete } from '@/lib/alerts';
 import { WEEKDAYS_SHORT } from '@/lib/dates';
-import { PALETTE, PALETTE_KEYS, paletteColor } from '@/theme/palette';
-import { radius, spacing, withAlpha } from '@/theme/theme';
+import { PALETTE, PALETTE_KEYS, paletteColor, type PaletteKey } from '@/theme/palette';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 const TARGETS = [1, 2, 3, 4, 5];
+const WEEKLY_TARGETS = [1, 2, 3, 4, 5, 6];
 
 /** Nowy nawyk: /nawyk/nowy, edycja: /nawyk/123. */
 export default function HabitEditScreen() {
@@ -30,8 +36,7 @@ export default function HabitEditScreen() {
   const habitId = Number(id);
 
   const db = useSQLiteContext();
-  const { colors, dark } = useTheme();
-  const insets = useSafeAreaInsets();
+  const { dark } = useTheme();
 
   const [form, setForm] = useState<HabitInput>({
     name: '',
@@ -41,6 +46,7 @@ export default function HabitEditScreen() {
     unit: null,
     reminder_time: null,
     days_mask: EVERY_DAY,
+    weekly_target: null,
   });
   // Cel nawyku ilościowego jako tekst z pola (np. „10000”).
   const [amountText, setAmountText] = useState('');
@@ -63,6 +69,7 @@ export default function HabitEditScreen() {
         unit: habit.unit,
         reminder_time: habit.reminder_time,
         days_mask: habit.days_mask,
+        weekly_target: habit.weekly_target,
       });
       if (habit.unit) setAmountText(String(habit.target_per_day));
       setArchived(habit.archived === 1);
@@ -98,20 +105,11 @@ export default function HabitEditScreen() {
     router.back();
   };
 
-  const setReminder = async (time: string) => {
+  const setReminder = (time: string) => {
     update({ reminder_time: time });
-    const permission = await requestPermission();
-    if (permission === 'denied') {
-      Alert.alert(
-        'Powiadomienia są zablokowane',
-        'Przypomnienie zostanie zapisane, ale nie dostaniesz go, dopóki nie włączysz powiadomień w ustawieniach telefonu.',
-        [
-          { text: 'Później', style: 'cancel' },
-          { text: 'Otwórz ustawienia', onPress: () => Linking.openSettings() },
-        ],
-      );
-    }
-    // 'unavailable' (Expo Go): godzina się zapisuje, a informacja jest pod sekcją przypomnienia.
+    void requestPermissionOrWarn(
+      'Przypomnienie zostanie zapisane, ale nie dostaniesz go, dopóki nie włączysz powiadomień w ustawieniach telefonu.',
+    );
   };
 
   // Ostatniego dnia nie da się odznaczyć — nawyk musi mieć przynajmniej jeden dzień.
@@ -125,39 +123,21 @@ export default function HabitEditScreen() {
     router.back();
   };
 
-  const confirmDelete = () => {
-    Alert.alert('Usunąć nawyk?', 'Cała historia odhaczeń tego nawyku też zostanie usunięta. Jeśli chcesz ją zachować, zarchiwizuj nawyk.', [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Usuń',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteHabit(db, habitId);
-          router.back();
-        },
+  const remove = () =>
+    confirmDelete(
+      'Usunąć nawyk?',
+      'Cała historia odhaczeń tego nawyku też zostanie usunięta. Jeśli chcesz ją zachować, zarchiwizuj nawyk.',
+      async () => {
+        await deleteHabit(db, habitId);
+        router.back();
       },
-    ]);
-  };
+    );
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: isNew ? 'Nowy nawyk' : 'Nawyk',
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} hitSlop={8} accessibilityRole="button">
-              <AppText variant="bodyStrong" tone={canSave ? 'accent' : 'textMuted'}>
-                Zapisz
-              </AppText>
-            </Pressable>
-          ),
-        }}
-      />
-
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScrollScreen
+        title={isNew ? 'Nowy nawyk' : 'Nawyk'}
+        headerRight={<HeaderTextButton onPress={save} disabled={!canSave} />}>
         {loaded ? (
           <>
             <View style={styles.preview}>
@@ -173,14 +153,11 @@ export default function HabitEditScreen() {
               returnKeyType="done"
             />
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Cel dzienny
-              </AppText>
-              <View style={styles.row}>
+            <Section title="Cel dzienny">
+              <ChipRow>
                 <Chip label="Licznik (1–5×)" selected={!isAmount} onPress={() => setGoalType(false)} />
                 <Chip label="Ilość" selected={isAmount} onPress={() => setGoalType(true)} />
-              </View>
+              </ChipRow>
               {isAmount ? (
                 <>
                   <View style={styles.amountRow}>
@@ -203,17 +180,17 @@ export default function HabitEditScreen() {
                       />
                     </View>
                   </View>
-                  <View style={styles.row}>
+                  <ChipRow>
                     {UNIT_SUGGESTIONS.map((unit) => (
                       <Chip key={unit} label={unit} selected={form.unit === unit} onPress={() => update({ unit })} />
                     ))}
-                  </View>
+                  </ChipRow>
                   <AppText variant="caption" tone="textMuted">
                     Stuknięcie w nawyk otworzy okienko, w którym dodasz ilość (np. +500 kroków).
                   </AppText>
                 </>
               ) : (
-                <View style={styles.row}>
+                <ChipRow>
                   {TARGETS.map((target) => (
                     <Chip
                       key={target}
@@ -222,40 +199,66 @@ export default function HabitEditScreen() {
                       onPress={() => update({ target_per_day: target })}
                     />
                   ))}
-                </View>
+                </ChipRow>
               )}
-            </View>
+            </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Dni tygodnia
-              </AppText>
-              <View style={styles.row}>
-                {WEEKDAYS_SHORT.map((name, index) => (
-                  <Chip
-                    key={name}
-                    label={name}
-                    selected={((form.days_mask >> index) & 1) === 1}
-                    onPress={() => toggleDay(index)}
-                  />
-                ))}
-              </View>
-              <View style={styles.row}>
-                <Chip label="Codziennie" selected={form.days_mask === EVERY_DAY} onPress={() => update({ days_mask: EVERY_DAY })} />
-                <Chip label="Dni robocze" selected={form.days_mask === 0b0011111} onPress={() => update({ days_mask: 0b0011111 })} />
-              </View>
-              {form.days_mask !== EVERY_DAY ? (
-                <AppText variant="caption" tone="textMuted">
-                  Pozostałe dni nie przerywają serii, a przypomnienia przychodzą tylko w wybrane dni.
-                </AppText>
-              ) : null}
-            </View>
+            <Section title="Kiedy">
+              <ChipRow>
+                <Chip
+                  label="W wybrane dni"
+                  selected={form.weekly_target === null}
+                  onPress={() => update({ weekly_target: null })}
+                />
+                <Chip
+                  label="X razy w tygodniu"
+                  selected={form.weekly_target !== null}
+                  onPress={() => update({ weekly_target: form.weekly_target ?? 3 })}
+                />
+              </ChipRow>
+              {form.weekly_target !== null ? (
+                <>
+                  <ChipRow>
+                    {WEEKLY_TARGETS.map((times) => (
+                      <Chip
+                        key={times}
+                        label={`${times}× w tyg.`}
+                        selected={form.weekly_target === times}
+                        onPress={() => update({ weekly_target: times })}
+                      />
+                    ))}
+                  </ChipRow>
+                  <AppText variant="caption" tone="textMuted">
+                    Dowolne dni tygodnia — seria liczy kolejne tygodnie z osiągniętym celem.
+                  </AppText>
+                </>
+              ) : (
+                <>
+                  <ChipRow>
+                    {WEEKDAYS_SHORT.map((name, index) => (
+                      <Chip
+                        key={name}
+                        label={name}
+                        selected={((form.days_mask >> index) & 1) === 1}
+                        onPress={() => toggleDay(index)}
+                      />
+                    ))}
+                  </ChipRow>
+                  <ChipRow>
+                    <Chip label="Codziennie" selected={form.days_mask === EVERY_DAY} onPress={() => update({ days_mask: EVERY_DAY })} />
+                    <Chip label="Dni robocze" selected={form.days_mask === WORKDAYS} onPress={() => update({ days_mask: WORKDAYS })} />
+                  </ChipRow>
+                  {form.days_mask !== EVERY_DAY ? (
+                    <AppText variant="caption" tone="textMuted">
+                      Pozostałe dni nie przerywają serii, a przypomnienia przychodzą tylko w wybrane dni.
+                    </AppText>
+                  ) : null}
+                </>
+              )}
+            </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Przypomnienie
-              </AppText>
-              <View style={styles.row}>
+            <Section title="Przypomnienie">
+              <ChipRow>
                 <Chip
                   label="Wyłączone"
                   selected={form.reminder_time === null}
@@ -267,77 +270,43 @@ export default function HabitEditScreen() {
                   selected={form.reminder_time !== null}
                   onPress={() => setTimePickerOpen(true)}
                 />
-              </View>
+              </ChipRow>
               {form.reminder_time ? (
                 <AppText variant="caption" tone="textMuted">
                   {notificationsSupported
                     ? 'Jeśli wykonasz nawyk wcześniej, tego dnia przypomnienie się nie pojawi.'
-                    : 'W Expo Go powiadomienia nie działają — przypomnienie zacznie przychodzić po zainstalowaniu aplikacji (APK).'}
+                    : EXPO_GO_NOTICE}
                 </AppText>
               ) : null}
-            </View>
+            </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Kolor
-              </AppText>
-              <View style={styles.row}>
-                {PALETTE_KEYS.map((key) => {
-                  const selected = form.color === key;
-                  return (
-                    <Pressable
-                      key={key}
-                      onPress={() => update({ color: key })}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      accessibilityLabel={PALETTE[key].label}
-                      style={[styles.swatch, { backgroundColor: paletteColor(key, dark) }]}>
-                      {selected ? <Icon name="check" size={20} color="#FFFFFF" /> : null}
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
+            <Section title="Kolor">
+              <ColorSwatches
+                swatches={PALETTE_KEYS.map((key) => ({ key, label: PALETTE[key].label, color: paletteColor(key, dark) }))}
+                value={form.color as PaletteKey}
+                onChange={(key) => update({ color: key })}
+                checkColor="#FFFFFF"
+              />
+            </Section>
 
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Ikona
-              </AppText>
-              <View style={styles.iconGrid}>
-                {HABIT_ICONS.map((icon) => {
-                  const selected = form.icon === icon;
-                  return (
-                    <Pressable
-                      key={icon}
-                      onPress={() => update({ icon })}
-                      accessibilityRole="button"
-                      accessibilityState={{ selected }}
-                      style={[
-                        styles.iconOption,
-                        { backgroundColor: selected ? withAlpha(color, 0.25) : colors.surface },
-                        selected && { borderColor: color },
-                      ]}>
-                      <Text style={styles.emoji}>{icon}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
+            <Section title="Ikona">
+              <EmojiPicker options={HABIT_ICONS} value={form.icon} onChange={(icon) => update({ icon })} color={color} />
+            </Section>
 
             {!isNew ? (
-              <View style={styles.section}>
+              <View style={styles.dangerZone}>
                 <Button
                   label={archived ? 'Przywróć z archiwum' : 'Archiwizuj'}
                   variant="secondary"
                   icon={archived ? 'unarchive' : 'archive'}
                   onPress={toggleArchived}
                 />
-                <Button label="Usuń nawyk" variant="danger" icon="delete" onPress={confirmDelete} />
+                <Button label="Usuń nawyk" variant="danger" icon="delete" onPress={remove} />
               </View>
             ) : null}
           </>
         ) : null}
-      </ScrollView>
+      </ScrollScreen>
 
       <TimePickerSheet
         visible={timePickerOpen}
@@ -351,28 +320,8 @@ export default function HabitEditScreen() {
 }
 
 const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
   preview: { alignItems: 'center' },
   amountRow: { flexDirection: 'row', gap: spacing.sm },
   flex: { flex: 1 },
-  section: { gap: spacing.sm },
-  row: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  swatch: {
-    width: 36,
-    height: 36,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  iconOption: {
-    width: 48,
-    height: 48,
-    borderRadius: radius.md,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: { fontSize: 24 },
+  dangerZone: { gap: spacing.sm },
 });

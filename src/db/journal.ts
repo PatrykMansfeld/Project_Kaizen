@@ -1,5 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { NOW_SQL } from '@/db/sql';
+
 import type { DateKey } from '@/lib/dates';
 
 export type JournalEntry = {
@@ -12,6 +14,12 @@ export type JournalEntry = {
 
 export type JournalContent = Pick<JournalEntry, 'mood' | 'body'>;
 
+/** Oceny nastroju z okresu (do statystyk i wniosków). */
+export const MOODS_RANGE_SQL =
+  'SELECT date, mood FROM journal_entries WHERE mood IS NOT NULL AND date BETWEEN $from AND $to ORDER BY date';
+
+export type MoodRow = { date: DateKey; mood: number };
+
 export function getJournalEntry(db: SQLiteDatabase, date: DateKey) {
   return db.getFirstAsync<JournalEntry>('SELECT * FROM journal_entries WHERE date = ?', date);
 }
@@ -23,7 +31,7 @@ export function saveJournalEntry(db: SQLiteDatabase, date: DateKey, { mood, body
   }
   return db.runAsync(
     `INSERT INTO journal_entries (date, mood, body, updated_at)
-     VALUES ($date, $mood, $body, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+     VALUES ($date, $mood, $body, ${NOW_SQL})
      ON CONFLICT (date) DO UPDATE SET mood = excluded.mood, body = excluded.body, updated_at = excluded.updated_at`,
     { $date: date, $mood: mood, $body: body },
   );

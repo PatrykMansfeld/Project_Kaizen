@@ -1,11 +1,6 @@
-import { StyleSheet, View } from 'react-native';
-
-import { AppText } from '@/components/app-text';
-import { IconButton } from '@/components/button';
 import { Chip } from '@/components/chip';
+import { PeriodNavigator } from '@/components/period-navigator';
 import { addDays, formatDayLong, relativeDayLabel, type DateKey } from '@/lib/dates';
-import { spacing } from '@/theme/theme';
-import { useTheme } from '@/theme/use-theme';
 
 type Props = {
   date: DateKey;
@@ -17,37 +12,15 @@ type Props = {
 
 /** ‹ czwartek, 10 września › — przełączanie dzień po dniu. */
 export function DayNavigator({ date, today, onChange, maxDate }: Props) {
-  const { colors } = useTheme();
-  const canGoNext = !maxDate || date < maxDate;
-  const relative = relativeDayLabel(date, today);
-
   return (
-    <View style={styles.container}>
-      <IconButton icon="chevron_left" accessibilityLabel="Poprzedni dzień" onPress={() => onChange(addDays(date, -1))} />
-      <View style={styles.center}>
-        <AppText variant="bodyStrong" style={styles.text}>
-          {formatDayLong(date)}
-        </AppText>
-        {relative ? (
-          <AppText variant="caption" tone="textSecondary">
-            {relative}
-          </AppText>
-        ) : (
-          <Chip label="Wróć do dziś" selected={false} onPress={() => onChange(today)} />
-        )}
-      </View>
-      <IconButton
-        icon="chevron_right"
-        accessibilityLabel="Następny dzień"
-        color={canGoNext ? colors.text : colors.border}
-        onPress={() => canGoNext && onChange(addDays(date, 1))}
-      />
-    </View>
+    <PeriodNavigator
+      title={formatDayLong(date)}
+      subtitle={relativeDayLabel(date, today) ?? <Chip label="Wróć do dziś" selected={false} onPress={() => onChange(today)} />}
+      onPrevious={() => onChange(addDays(date, -1))}
+      onNext={() => onChange(addDays(date, 1))}
+      canGoNext={!maxDate || date < maxDate}
+      unitLabel={{ previous: 'Poprzedni dzień', next: 'Następny dzień' }}
+      compact
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  center: { flex: 1, alignItems: 'center', gap: spacing.xs },
-  text: { textAlign: 'center' },
-});

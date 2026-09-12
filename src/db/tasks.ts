@@ -1,5 +1,8 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
+import { NOW_SQL } from '@/db/sql';
+import type { Table } from '@/db/use-query';
+
 import { addDays, addMonths, weekdayIndex, type DateKey } from '@/lib/dates';
 
 export type Priority = 0 | 1 | 2 | 3;
@@ -20,26 +23,29 @@ export type Task = {
   repeat: Repeat | null;
   /** Zrobiona kopia zadania cyklicznego → id zadania, z którego powstała. */
   recurring_parent_id: number | null;
+  project_id: number | null;
   /** Tylko w zapytaniach z TASK_COLUMNS. */
   subtask_count?: number;
   subtask_done?: number;
   /** Id tagów po przecinku ('1,4') albo null. */
   tag_ids?: string | null;
+  project_name?: string | null;
 };
 
 /** Kolumny zadania razem z postępem podzadań i tagami — do list. */
 export const TASK_COLUMNS = `tasks.*,
   (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = tasks.id) AS subtask_count,
   (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = tasks.id AND s.done = 1) AS subtask_done,
-  (SELECT GROUP_CONCAT(tt.tag_id) FROM task_tags tt WHERE tt.task_id = tasks.id) AS tag_ids`;
+  (SELECT GROUP_CONCAT(tt.tag_id) FROM task_tags tt WHERE tt.task_id = tasks.id) AS tag_ids,
+  (SELECT p.name FROM projects p WHERE p.id = tasks.project_id) AS project_name`;
 
 /** Tabele, od których zależą listy zadań (do useQuery). */
-export const TASK_TABLES = ['tasks', 'subtasks', 'task_tags', 'tags'] as const;
+export const TASK_TABLES: readonly Table[] = ['tasks', 'subtasks', 'task_tags', 'tags', 'projects'];
 
 // $tag = null → wszystkie zadania; inaczej tylko z tym tagiem.
 const TAG_FILTER = 'AND ($tag IS NULL OR EXISTS (SELECT 1 FROM task_tags f WHERE f.task_id = tasks.id AND f.tag_id = $tag))';
 
-export type TaskInput = Pick<Task, 'title' | 'notes' | 'priority' | 'due_date' | 'due_time' | 'repeat'>;
+export type TaskInput = Pick<Task, 'title' | 'notes' | 'priority' | 'due_date' | 'due_time' | 'repeat' | 'project_id'>;
 
 export type TaskFilter = 'open' | 'today' | 'done';
 
@@ -89,21 +95,27 @@ function toParams(input: TaskInput) {
     // Godzina i powtarzanie bez terminu nie mają sensu.
     $time: input.due_date ? (input.due_time ?? null) : null,
     $repeat: input.due_date ? input.repeat : null,
+    $project: input.project_id ?? null,
   };
 }
 
 export function createTask(db: SQLiteDatabase, input: TaskInput) {
   return db.runAsync(
-    `INSERT INTO tasks (title, notes, priority, due_date, due_time, repeat)
-     VALUES ($title, $notes, $priority, $due, $time, $repeat)`,
+    `INSERT INTO tasks (title, notes, priority, due_date, due_time, repeat, project_id)
+     VALUES ($title, $notes, $priority, $due, $time, $repeat, $project)`,
     toParams(input),
   );
+}
+
+/** Szybkie zadanie z samym tytułem i terminem (plan na jutro, priorytety tygodnia). */
+export function createQuickTask(db: SQLiteDatabase, title: string, dueDate: DateKey, priority: Priority = 0) {
+  return createTask(db, { title, notes: '', priority, due_date: dueDate, due_time: null, repeat: null, project_id: null });
 }
 
 export function updateTask(db: SQLiteDatabase, id: number, input: TaskInput) {
   return db.runAsync(
     `UPDATE tasks SET title = $title, notes = $notes, priority = $priority, due_date = $due, due_time = $time,
-       repeat = $repeat
+       repeat = $repeat, project_id = $project
      WHERE id = $id`,
     { ...toParams(input), $id: id },
   );
@@ -111,7 +123,7 @@ export function updateTask(db: SQLiteDatabase, id: number, input: TaskInput) {
 
 function setTaskDone(db: SQLiteDatabase, id: number, done: boolean) {
   return db.runAsync(
-    `UPDATE tasks SET completed_at = ${done ? "strftime('%Y-%m-%dT%H:%M:%fZ', 'now')" : 'NULL'} WHERE id = ?`,
+    `UPDATE tasks SET completed_at = ${done ? NOW_SQL : 'NULL'} WHERE id = ?`,
     id,
   );
 }
@@ -156,13 +168,14 @@ export async function toggleTask(db: SQLiteDatabase, task: Task, today: DateKey)
     const { repeat, due_date: due } = task;
     await db.withTransactionAsync(async () => {
       const { lastInsertRowId: copyId } = await db.runAsync(
-        `INSERT INTO tasks (title, notes, priority, due_date, due_time, completed_at, recurring_parent_id)
-         VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), ?)`,
+        `INSERT INTO tasks (title, notes, priority, due_date, due_time, project_id, completed_at, recurring_parent_id)
+         VALUES (?, ?, ?, ?, ?, ?, ${NOW_SQL}, ?)`,
         task.title,
         task.notes,
         task.priority,
         due,
-        task.due_time,
+        task.due_time ?? null,
+        task.project_id ?? null,
         task.id,
       );
       // Zrobiona kopia zabiera stan podzadań i tagi; zadanie na kolejny termin ma podzadania od zera.

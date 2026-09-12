@@ -1,8 +1,8 @@
 import { useState } from 'react';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { BottomSheet, SheetActions } from '@/components/bottom-sheet';
 import { Button } from '@/components/button';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -24,62 +24,49 @@ const pad = (value: number) => String(value).padStart(2, '0');
 /** Wybór godziny (co 5 minut), wysuwany od dołu. */
 export function TimePickerSheet({ visible, onClose, ...rest }: Props) {
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      navigationBarTranslucent
-      onRequestClose={onClose}>
+    <BottomSheet visible={visible} onClose={onClose} gap={spacing.md}>
       <SheetContent onClose={onClose} {...rest} />
-    </Modal>
+    </BottomSheet>
   );
 }
 
 function SheetContent({ title, value, onChange, onClose }: Omit<Props, 'visible'>) {
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const [initialHour, initialMinute] = (value ?? '20:00').split(':').map(Number);
   const [hour, setHour] = useState(initialHour);
   const [minute, setMinute] = useState(initialMinute - (initialMinute % 5));
 
   return (
     <>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Zamknij" />
-      <View style={[styles.sheet, { backgroundColor: colors.surface, paddingBottom: insets.bottom + spacing.lg }]}>
-        <View style={styles.titleRow}>
-          <AppText variant="heading" style={styles.flex}>
-            {title}
-          </AppText>
-          <AppText variant="heading" tone="accent">
-            {pad(hour)}:{pad(minute)}
-          </AppText>
-        </View>
-
-        <AppText variant="label" tone="textSecondary">
-          Godzina
+      <View style={styles.titleRow}>
+        <AppText variant="heading" style={styles.flex}>
+          {title}
         </AppText>
-        <Grid values={HOURS} selected={hour} onSelect={setHour} format={String} />
-
-        <AppText variant="label" tone="textSecondary">
-          Minuty
+        <AppText variant="heading" tone="accent">
+          {pad(hour)}:{pad(minute)}
         </AppText>
-        <Grid values={MINUTES} selected={minute} onSelect={setMinute} format={pad} />
+      </View>
 
-        <View style={styles.actions}>
-          <View style={styles.flex}>
-            <Button label="Anuluj" variant="secondary" onPress={onClose} />
-          </View>
-          <View style={styles.flex}>
-            <Button
-              label="Gotowe"
-              onPress={() => {
-                onChange(`${pad(hour)}:${pad(minute)}`);
-                onClose();
-              }}
-            />
-          </View>
-        </View>
+      <AppText variant="label" tone="textSecondary">
+        Godzina
+      </AppText>
+      <Grid values={HOURS} selected={hour} onSelect={setHour} format={String} />
+
+      <AppText variant="label" tone="textSecondary">
+        Minuty
+      </AppText>
+      <Grid values={MINUTES} selected={minute} onSelect={setMinute} format={pad} />
+
+      <View style={styles.actions}>
+        <SheetActions>
+          <Button label="Anuluj" variant="secondary" onPress={onClose} />
+          <Button
+            label="Gotowe"
+            onPress={() => {
+              onChange(`${pad(hour)}:${pad(minute)}`);
+              onClose();
+            }}
+          />
+        </SheetActions>
       </View>
     </>
   );
@@ -116,14 +103,6 @@ function Grid({ values, selected, onSelect, format }: GridProps) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
-  sheet: {
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.xl,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-  },
   titleRow: { flexDirection: 'row', alignItems: 'center' },
   flex: { flex: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs },
@@ -136,5 +115,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actions: { flexDirection: 'row', gap: spacing.md, marginTop: spacing.sm },
+  actions: { marginTop: spacing.sm },
 });

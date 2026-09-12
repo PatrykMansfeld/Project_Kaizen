@@ -19,6 +19,8 @@ const light = {
   tasks: '#0090FF',
   journal: '#B04AA8',
   notes: '#E2A336',
+  // Wydatki — osobny moduł (nie występuje razem z paletą kropek kalendarza).
+  finance: '#0E8A7D',
 };
 
 export type ThemeColors = typeof light;
@@ -42,9 +44,30 @@ const dark: ThemeColors = {
   tasks: '#3987E5',
   journal: '#C957B8',
   notes: '#F5C451',
+  finance: '#2EBFA9',
 };
 
 export type Theme = { dark: boolean; colors: ThemeColors };
+
+/**
+ * Kolory akcentu do wyboru w Ustawieniach: [akcent, tło akcentu] dla trybu jasnego i ciemnego.
+ * Każdy akcent ma kontrast ≥ 4,5:1 jako tekst na tle aplikacji i pod napisem na przycisku.
+ */
+export const ACCENTS = {
+  indigo: { label: 'Indygo', light: ['#5B5BD6', '#E6E7FB'], dark: ['#9EA0F5', '#2B2C5A'] },
+  blue: { label: 'Niebieski', light: ['#0A6FBF', '#DCEBFB'], dark: ['#70B8FF', '#10304D'] },
+  teal: { label: 'Morski', light: ['#0A7A69', '#D7F2EC'], dark: ['#3DD6B8', '#0E3A33'] },
+  green: { label: 'Zielony', light: ['#1B7A52', '#DDF3E6'], dark: ['#4CC38A', '#123B27'] },
+  orange: { label: 'Pomarańczowy', light: ['#B84600', '#FDE6D8'], dark: ['#FF9B5A', '#46260F'] },
+  pink: { label: 'Różowy', light: ['#C2298A', '#FBE0F0'], dark: ['#F58ACC', '#48193A'] },
+} as const;
+
+export type AccentKey = keyof typeof ACCENTS;
+
+export function withAccent(theme: Theme, accent: AccentKey): Theme {
+  const [color, soft] = ACCENTS[accent][theme.dark ? 'dark' : 'light'];
+  return { ...theme, colors: { ...theme.colors, accent: color, accentSoft: soft } };
+}
 
 export const lightTheme: Theme = { dark: false, colors: light };
 export const darkTheme: Theme = { dark: true, colors: dark };

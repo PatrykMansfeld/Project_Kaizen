@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { AppText } from '@/components/app-text';
 import { Button, IconButton } from '@/components/button';
 import { Icon } from '@/components/icon';
-import type { ExerciseSets, WorkoutSetRow } from '@/db/exercises';
+import type { Exercise, ExerciseSets, WorkoutSetRow } from '@/db/exercises';
 import { formatDecimal, parseDecimal } from '@/lib/format';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -18,6 +18,19 @@ export const newKey = () => String(++lastKey);
 
 export function setDraft(reps: number | null, weight: number | null): SetDraft {
   return { key: newKey(), reps: reps ? String(reps) : '', weight: weight !== null ? formatDecimal(weight) : '' };
+}
+
+/** Nowe ćwiczenie w formularzu z jedną serią — podpowiedzianą z ostatniego treningu z tym ćwiczeniem. */
+export function exerciseDraft(
+  exercise: Exercise,
+  lastSet: { reps: number | null; weight_kg: number | null } | null,
+): ExerciseDraft {
+  return {
+    key: newKey(),
+    exerciseId: exercise.id,
+    name: exercise.name,
+    sets: [setDraft(lastSet?.reps ?? null, lastSet?.weight_kg ?? null)],
+  };
 }
 
 /** Serie z bazy → ćwiczenia w kolejności pierwszej serii. */

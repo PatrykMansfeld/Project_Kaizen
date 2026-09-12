@@ -1,9 +1,11 @@
 import { router } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
+import { Card } from '@/components/card';
+import { EmptyLine } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
+import { Section } from '@/components/section';
 import {
   DAY_HABITS_SQL,
   DAY_JOURNAL_SQL,
@@ -11,19 +13,23 @@ import {
   DAY_WORKOUTS_SQL,
   type HabitWithCount,
 } from '@/db/day';
+import { FINANCE_TABLES, TRANSACTIONS_RANGE_SQL, type Transaction } from '@/db/finance';
 import type { JournalEntry } from '@/db/journal';
-import { TASK_TABLES, toggleTask, type Task } from '@/db/tasks';
+import { TASK_TABLES, type Task } from '@/db/tasks';
 import { useQuery } from '@/db/use-query';
 import type { Workout } from '@/db/workouts';
 import { WorkoutRow } from '@/features/activity/workout-row';
+import { formatMoney } from '@/features/finance/money';
+import { TransactionRow } from '@/features/finance/transaction-row';
 import { moodOf } from '@/features/journal/moods';
+import { useModuleVisible } from '@/features/modules/preferences';
 import { useTags } from '@/features/tags/tags';
 import { TaskRow } from '@/features/tasks/task-row';
 import type { DateKey } from '@/lib/dates';
-import { radius, spacing } from '@/theme/theme';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
-import { DayHabits, DaySection, habitsForDay } from './day-habits';
+import { DayHabits, habitsForDay } from './day-habits';
 
 type Props = {
   date: DateKey;
@@ -34,7 +40,6 @@ type Props = {
 
 /** Wszystko z jednego dnia: dziennik, nawyki, zadania i treningi. */
 export function DayAgenda({ date, today, variant }: Props) {
-  const db = useSQLiteContext();
   const { colors } = useTheme();
   const full = variant === 'full';
   // Przyszłości nie da się odhaczyć ani opisać w dzienniku.
@@ -46,10 +51,14 @@ export function DayAgenda({ date, today, variant }: Props) {
   const { rows: tasks } = useQuery<Task>(
     DAY_TASKS_SQL,
     { $date: date, $withOverdue: date === today ? 1 : 0 },
-    [...TASK_TABLES],
+    TASK_TABLES,
   );
   const { byId: tagsById } = useTags();
   const { rows: workouts } = useQuery<Workout>(DAY_WORKOUTS_SQL, { $date: date }, ['workouts', 'workout_sets']);
+
+  const { rows: transactions } = useQuery<Transaction>(TRANSACTIONS_RANGE_SQL, { $from: date, $to: date }, FINANCE_TABLES);
+  const financeVisible = useModuleVisible('finanse');
+  const spent = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
 
   const journal = journalRows[0] ?? null;
   const habitsDone = habits.filter((habit) => habit.count >= habit.target_per_day).length;
@@ -57,55 +66,60 @@ export function DayAgenda({ date, today, variant }: Props) {
   return (
     <View style={styles.container}>
       {isPast ? (
-        <DaySection icon="auto_stories" color={colors.journal} title="Dziennik">
+        <Section icon="auto_stories" color={colors.journal} title="Dziennik">
           <JournalCard entry={journal} full={full} onPress={() => router.push({ pathname: '/dziennik/[date]', params: { date } })} />
-        </DaySection>
+        </Section>
       ) : null}
 
       {isPast && habits.length > 0 ? (
-        <DaySection icon="check_circle" color={colors.habits} title="Nawyki" meta={`${habitsDone} z ${habits.length}`}>
+        <Section icon="check_circle" color={colors.habits} title="Nawyki" meta={`${habitsDone} z ${habits.length}`}>
           <DayHabits habits={habits} date={date} today={today} variant={full ? 'rows' : 'chips'} />
-        </DaySection>
+        </Section>
       ) : null}
 
-      <DaySection
+      <Section
         icon="checklist"
         color={colors.tasks}
         title="Zadania"
         onAdd={full ? () => router.push({ pathname: '/zadanie/[id]', params: { id: 'nowe', due: date } }) : undefined}>
         {tasks.length ? (
           tasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              today={today}
-              tagsById={tagsById}
-              onPress={() => router.push({ pathname: '/zadanie/[id]', params: { id: String(task.id) } })}
-              onToggle={() => toggleTask(db, task, today)}
-            />
+            <TaskRow key={task.id} task={task} today={today} tagsById={tagsById} />
           ))
         ) : (
           <EmptyLine text="Brak zadań na ten dzień" />
         )}
-      </DaySection>
+      </Section>
 
-      <DaySection
+      <Section
         icon="directions_run"
         color={colors.activity}
         title="Aktywność"
         onAdd={full ? () => router.push({ pathname: '/trening/[id]', params: { id: 'nowy', date } }) : undefined}>
         {workouts.length ? (
           workouts.map((workout) => (
-            <WorkoutRow
-              key={workout.id}
-              workout={workout}
-              onPress={() => router.push({ pathname: '/trening/[id]', params: { id: String(workout.id) } })}
-            />
+            <WorkoutRow key={workout.id} workout={workout} />
           ))
         ) : (
           <EmptyLine text="Brak treningów" />
         )}
-      </DaySection>
+      </Section>
+
+      {/* Wydatki tylko w pełnym widoku dnia — na ekranie Dziś jest do nich skrót. */}
+      {full && isPast && financeVisible ? (
+        <Section
+          icon="payments"
+          color={colors.finance}
+          title="Wydatki"
+          meta={spent ? `−${formatMoney(spent)}` : undefined}
+          onAdd={() => router.push({ pathname: '/finanse/transakcja/[id]', params: { id: 'nowa', date } })}>
+          {transactions.length ? (
+            transactions.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />)
+          ) : (
+            <EmptyLine text="Brak wydatków" />
+          )}
+        </Section>
+      ) : null}
     </View>
   );
 }
@@ -115,10 +129,7 @@ function JournalCard({ entry, full, onPress }: { entry: JournalEntry | null; ful
   const mood = moodOf(entry?.mood ?? null);
 
   return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: colors.border }}
-      style={[styles.journal, { backgroundColor: colors.surface }]}>
+    <Card onPress={onPress} style={styles.journal}>
       {entry ? (
         <>
           {mood ? (
@@ -144,23 +155,14 @@ function JournalCard({ entry, full, onPress }: { entry: JournalEntry | null; ful
           </View>
         </View>
       )}
-    </Pressable>
-  );
-}
-
-export function EmptyLine({ text }: { text: string }) {
-  return (
-    <AppText variant="caption" tone="textMuted" style={styles.emptyLine}>
-      {text}
-    </AppText>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
   container: { gap: spacing.xl },
   flex: { flex: 1 },
-  journal: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.md, overflow: 'hidden' },
+  journal: { gap: spacing.sm },
   moodRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   moodEmoji: { fontSize: 28 },
-  emptyLine: { paddingVertical: spacing.xs },
 });

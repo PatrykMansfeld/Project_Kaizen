@@ -1,25 +1,24 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
+import { HeaderTextButton } from '@/components/header';
+import { ScrollScreen } from '@/components/screen';
+import { Section } from '@/components/section';
 import { TextField } from '@/components/text-field';
 import { getLastSet, type Exercise } from '@/db/exercises';
 import { createTemplate, deleteTemplate, getTemplate, getTemplateSets, updateTemplate } from '@/db/templates';
 import {
   ExerciseEditor,
   draftsFromRows,
-  newKey,
+  exerciseDraft,
   parseDrafts,
-  setDraft,
   type ExerciseDraft,
 } from '@/features/activity/exercise-editor';
 import { ExercisePicker } from '@/features/activity/exercise-picker';
-import { spacing } from '@/theme/theme';
-import { useTheme } from '@/theme/use-theme';
+import { confirmDelete } from '@/lib/alerts';
 
 /** Nowy szablon: /szablon/nowy, edycja: /szablon/3. */
 export default function TemplateEditScreen() {
@@ -28,8 +27,6 @@ export default function TemplateEditScreen() {
   const templateId = Number(id);
 
   const db = useSQLiteContext();
-  const { colors } = useTheme();
-  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
   const [exercises, setExercises] = useState<ExerciseDraft[]>([]);
   const [loaded, setLoaded] = useState(isNew);
@@ -52,11 +49,8 @@ export default function TemplateEditScreen() {
   const canSave = loaded && name.trim().length > 0 && parsed !== null && parsed.length > 0;
 
   const addExercise = async (exercise: Exercise) => {
-    const last = await getLastSet(db, exercise.id, null);
-    setExercises((current) => [
-      ...current,
-      { key: newKey(), exerciseId: exercise.id, name: exercise.name, sets: [setDraft(last?.reps ?? null, last?.weight_kg ?? null)] },
-    ]);
+    const draft = exerciseDraft(exercise, await getLastSet(db, exercise.id, null));
+    setExercises((current) => [...current, draft]);
   };
 
   const save = async () => {
@@ -66,55 +60,32 @@ export default function TemplateEditScreen() {
     router.back();
   };
 
-  const confirmDelete = () =>
-    Alert.alert('Usunąć szablon?', 'Zapisane treningi zostaną — znika tylko szablon.', [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Usuń',
-        style: 'destructive',
-        onPress: async () => {
-          await deleteTemplate(db, templateId);
-          router.back();
-        },
-      },
-    ]);
+  const remove = () =>
+    confirmDelete('Usunąć szablon?', 'Zapisane treningi zostaną — znika tylko szablon.', async () => {
+      await deleteTemplate(db, templateId);
+      router.back();
+    });
 
   return (
     <>
-      <Stack.Screen
-        options={{
-          title: isNew ? 'Nowy szablon' : 'Szablon',
-          headerRight: () => (
-            <Pressable onPress={save} disabled={!canSave} hitSlop={8} accessibilityRole="button">
-              <AppText variant="bodyStrong" tone={canSave ? 'accent' : 'textMuted'}>
-                Zapisz
-              </AppText>
-            </Pressable>
-          ),
-        }}
-      />
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        style={{ backgroundColor: colors.background }}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + spacing.xl }]}>
+      <ScrollScreen
+        title={isNew ? 'Nowy szablon' : 'Szablon'}
+        headerRight={<HeaderTextButton onPress={save} disabled={!canSave} />}>
         {loaded ? (
           <>
             <TextField label="Nazwa" value={name} onChangeText={setName} placeholder="np. Push, Nogi, FBW" autoFocus={isNew} />
-            <View style={styles.section}>
-              <AppText variant="label" tone="textSecondary">
-                Ćwiczenia
-              </AppText>
+            <Section title="Ćwiczenia">
               <ExerciseEditor exercises={exercises} onChange={setExercises} onAddExercise={() => setPickerOpen(true)} />
               {parsed === null ? (
                 <AppText variant="caption" tone="danger">
                   Wpisz liczbę powtórzeń w każdej serii (ciężar jest opcjonalny).
                 </AppText>
               ) : null}
-            </View>
-            {!isNew ? <Button label="Usuń szablon" variant="danger" icon="delete" onPress={confirmDelete} /> : null}
+            </Section>
+            {!isNew ? <Button label="Usuń szablon" variant="danger" icon="delete" onPress={remove} /> : null}
           </>
         ) : null}
-      </ScrollView>
+      </ScrollScreen>
       <ExercisePicker
         visible={pickerOpen}
         excludeIds={exercises.map((exercise) => exercise.exerciseId)}
@@ -124,8 +95,3 @@ export default function TemplateEditScreen() {
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  content: { gap: spacing.xl, padding: spacing.lg },
-  section: { gap: spacing.sm },
-});

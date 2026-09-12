@@ -1,10 +1,11 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { router } from 'expo-router';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { Icon } from '@/components/icon';
+import { Card } from '@/components/card';
+import { IconBadge } from '@/components/icon-badge';
 import type { Workout } from '@/db/workouts';
 import { formatDuration, formatKm, plural } from '@/lib/format';
-import { radius, spacing, withAlpha } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 import { WORKOUT_TYPES, workoutPace } from './workout-types';
@@ -21,18 +22,15 @@ export function workoutSummary(workout: Workout) {
     .join(' · ');
 }
 
-export function WorkoutRow({ workout, onPress }: { workout: Workout; onPress: () => void }) {
+/** Wiersz treningu; stuknięcie domyślnie otwiera jego edycję. */
+export function WorkoutRow({ workout, onPress }: { workout: Workout; onPress?: () => void }) {
   const { colors } = useTheme();
+  const open = onPress ?? (() => router.push({ pathname: '/trening/[id]', params: { id: String(workout.id) } }));
   const type = WORKOUT_TYPES[workout.type];
 
   return (
-    <Pressable
-      onPress={onPress}
-      android_ripple={{ color: colors.border }}
-      style={[styles.row, { backgroundColor: colors.surface }]}>
-      <View style={[styles.icon, { backgroundColor: withAlpha(colors.activity, 0.16) }]}>
-        <Icon name={type.icon} color={colors.activity} />
-      </View>
+    <Card variant="row" onPress={open}>
+      <IconBadge icon={type.icon} color={colors.activity} />
       <View style={styles.body}>
         <AppText variant="bodyStrong">{type.label}</AppText>
         <AppText variant="caption" tone="textSecondary">
@@ -44,26 +42,10 @@ export function WorkoutRow({ workout, onPress }: { workout: Workout; onPress: ()
           </AppText>
         ) : null}
       </View>
-    </Pressable>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-  },
-  icon: {
-    width: 44,
-    height: 44,
-    borderRadius: radius.full,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   body: { flex: 1, gap: 2 },
 });

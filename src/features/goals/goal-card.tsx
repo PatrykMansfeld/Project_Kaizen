@@ -1,14 +1,15 @@
 import { useSQLiteContext } from 'expo-sqlite';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/button';
-import { Icon } from '@/components/icon';
+import { Card } from '@/components/card';
+import { IconBadge } from '@/components/icon-badge';
 import { goalFraction, goalProgressQuery, setGoalProgress, type Goal } from '@/db/goals';
 import { useQuery } from '@/db/use-query';
 import { Meter } from '@/features/stats/charts';
 import { formatDayShort, type DateKey } from '@/lib/dates';
-import { radius, spacing, withAlpha } from '@/theme/theme';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 import { GOAL_KINDS, goalPace, goalProgressText, goalStatus } from './goal-format';
@@ -44,11 +45,9 @@ export function GoalCard({ goal, today, onPress, compact = false }: Props) {
   const kind = GOAL_KINDS[goal.kind];
 
   return (
-    <Pressable onPress={onPress} android_ripple={{ color: colors.border }} style={[styles.card, { backgroundColor: colors.surface }]}>
+    <Card onPress={onPress} style={styles.card}>
       <View style={styles.header}>
-        <View style={[styles.icon, { backgroundColor: withAlpha(colors.accent, 0.14) }]}>
-          <Icon name={kind.icon} size={20} color={colors.accent} />
-        </View>
+        <IconBadge icon={kind.icon} color={colors.accent} size={36} />
         <View style={styles.titles}>
           <AppText variant="bodyStrong" numberOfLines={1}>
             {goal.title}
@@ -89,14 +88,13 @@ export function GoalCard({ goal, today, onPress, compact = false }: Props) {
           />
         </View>
       ) : null}
-    </Pressable>
+    </Card>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { gap: spacing.sm, padding: spacing.lg, borderRadius: radius.md, overflow: 'hidden' },
+  card: { gap: spacing.sm },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  icon: { width: 36, height: 36, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   titles: { flex: 1, gap: 2 },
   footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   flex: { flex: 1 },

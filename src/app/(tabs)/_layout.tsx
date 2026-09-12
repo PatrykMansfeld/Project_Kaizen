@@ -1,10 +1,18 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
+import { useModulePreferences } from '@/features/modules/preferences';
+import { MODULES, TAB_MODULES } from '@/features/modules/registry';
 import { useTheme } from '@/theme/use-theme';
 
-// Android pozwala na maksymalnie 5 zakładek — dziennik jest częścią „Dziś”.
+/**
+ * Dolny pasek: „Dziś” i do 4 modułów wybranych na ekranie Moduły → Dostosuj (Android pozwala na 5 zakładek).
+ * Pozostałe moduły mają ukryte zakładki — otwierają się wtedy przez /modul/[key].
+ * Zmiana układu przebudowuje pasek (i wraca do pierwszej zakładki).
+ */
 export default function TabsLayout() {
   const { colors } = useTheme();
+  const { tabs } = useModulePreferences();
+  const order = [...tabs, ...TAB_MODULES.filter((key) => !tabs.includes(key))];
 
   return (
     <NativeTabs
@@ -18,22 +26,12 @@ export default function TabsLayout() {
         <NativeTabs.Trigger.Icon md="today" />
         <NativeTabs.Trigger.Label>Dziś</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="nawyki">
-        <NativeTabs.Trigger.Icon md="check_circle" />
-        <NativeTabs.Trigger.Label>Nawyki</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="zadania">
-        <NativeTabs.Trigger.Icon md="checklist" />
-        <NativeTabs.Trigger.Label>Zadania</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="aktywnosc">
-        <NativeTabs.Trigger.Icon md="directions_run" />
-        <NativeTabs.Trigger.Label>Aktywność</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="notatki">
-        <NativeTabs.Trigger.Icon md="sticky_note_2" />
-        <NativeTabs.Trigger.Label>Notatki</NativeTabs.Trigger.Label>
-      </NativeTabs.Trigger>
+      {order.map((key) => (
+        <NativeTabs.Trigger key={key} name={key} hidden={!tabs.includes(key)}>
+          <NativeTabs.Trigger.Icon md={MODULES[key].icon} />
+          <NativeTabs.Trigger.Label>{MODULES[key].tabLabel ?? MODULES[key].label}</NativeTabs.Trigger.Label>
+        </NativeTabs.Trigger>
+      ))}
     </NativeTabs>
   );
 }

@@ -125,6 +125,11 @@ export function formatDateRange(from: DateKey, to: DateKey, today: DateKey = tod
   return `${a.getDate()} ${MONTHS_GENITIVE[a.getMonth()]} – ${b.getDate()} ${MONTHS_GENITIVE[b.getMonth()]}${year}`;
 }
 
+/** „Dziś”, „Wczoraj”, „Jutro”, a dalej „10 września” — do list i podpisów. */
+export function formatDayRelative(key: DateKey, today: DateKey = todayKey()): string {
+  return relativeDayLabel(key, today) ?? formatDayShort(key, today);
+}
+
 /** Znacznik czasu ISO → „Dziś, 14:32”, „Wczoraj, 9:05” albo „8 września”. */
 export function formatTimestamp(iso: string, today: DateKey = todayKey()): string {
   const date = new Date(iso);

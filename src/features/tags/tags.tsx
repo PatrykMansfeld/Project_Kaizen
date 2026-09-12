@@ -1,12 +1,13 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/button';
 import { Chip } from '@/components/chip';
 import { TAGS_SQL, createTag, deleteTag, type Tag } from '@/db/tags';
 import { useQuery } from '@/db/use-query';
+import { confirmDelete } from '@/lib/alerts';
 import { paletteColor } from '@/theme/palette';
 import { radius, spacing, withAlpha } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -92,11 +93,10 @@ export function TagManager() {
   const { dark, colors } = useTheme();
   const { tags } = useTags();
 
-  const confirmDelete = (tag: Tag) =>
-    Alert.alert(`Usunąć tag #${tag.name}?`, 'Tag zniknie ze wszystkich zadań i notatek. Same zadania i notatki zostaną.', [
-      { text: 'Anuluj', style: 'cancel' },
-      { text: 'Usuń', style: 'destructive', onPress: () => deleteTag(db, tag.id) },
-    ]);
+  const remove = (tag: Tag) =>
+    confirmDelete(`Usunąć tag #${tag.name}?`, 'Tag zniknie ze wszystkich zadań i notatek. Same zadania i notatki zostaną.', () =>
+      deleteTag(db, tag.id),
+    );
 
   if (tags.length === 0) {
     return (
@@ -116,7 +116,7 @@ export function TagManager() {
             icon="delete"
             color={colors.textMuted}
             accessibilityLabel={`Usuń tag ${tag.name}`}
-            onPress={() => confirmDelete(tag)}
+            onPress={() => remove(tag)}
           />
         </View>
       ))}

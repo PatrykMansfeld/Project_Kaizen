@@ -6,7 +6,18 @@ import { AppState } from 'react-native';
 import { getNotifications, syncReminders } from './reminders';
 
 /** Tabele, których zmiana może zmienić plan przypomnień. */
-const WATCHED = new Set(['habits', 'habit_logs', 'tasks', 'settings']);
+const WATCHED = new Set([
+  'habits',
+  'habit_logs',
+  'tasks',
+  'settings',
+  'weekly_reviews',
+  'medications',
+  'medication_logs',
+  'recurring_bills',
+  'home_chores',
+  'warranties',
+]);
 
 /**
  * Działa w tle przez cały czas życia aplikacji: odświeża plan przypomnień po zmianach
