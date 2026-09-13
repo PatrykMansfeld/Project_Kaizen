@@ -9,6 +9,7 @@ import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/button';
 import { HeaderActions } from '@/components/header';
 import { Icon, type IconName } from '@/components/icon';
+import { ImageViewer } from '@/components/image-viewer';
 import { StackHeader } from '@/components/screen';
 import {
   NOTE_IMAGES_SQL,
@@ -27,12 +28,11 @@ import {
 import { getNoteTagIds, setNoteTags } from '@/db/tags';
 import { useQuery } from '@/db/use-query';
 import { applyFormat, toggleCheckLine, type Format, type Selection } from '@/features/notes/markdown';
-import { ImageViewer } from '@/features/notes/image-viewer';
 import { MarkdownView } from '@/features/notes/markdown-view';
-import { deleteImageFiles, pickNoteImages } from '@/features/notes/note-images';
 import { TagBadges, TagPicker, useTags } from '@/features/tags/tags';
 import { alertPermissionBlocked, confirmDelete } from '@/lib/alerts';
 import { formatTimestamp } from '@/lib/dates';
+import { deleteImageFiles, pickImages } from '@/lib/images';
 import { useAutosave } from '@/lib/use-autosave';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -173,7 +173,7 @@ export default function NoteEditorScreen() {
   };
 
   const addImages = async () => {
-    const result = await pickNoteImages();
+    const result = await pickImages('note-images');
     if (!result) return;
     if ('denied' in result) {
       alertPermissionBlocked('Brak dostępu do zdjęć', 'Zezwól Kaizen na dostęp do zdjęć w ustawieniach telefonu.');

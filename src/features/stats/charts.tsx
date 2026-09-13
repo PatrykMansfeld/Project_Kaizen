@@ -12,9 +12,14 @@ import { useTheme } from '@/theme/use-theme';
  */
 
 export function StatTile({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  const { colors } = useTheme();
+  const { colors, cardBorderWidth } = useTheme();
   return (
-    <View style={[styles.tile, { backgroundColor: colors.surface }]}>
+    <View
+      style={[
+        styles.tile,
+        { backgroundColor: colors.surface },
+        cardBorderWidth > 0 && { borderWidth: cardBorderWidth, borderColor: colors.cardBorder },
+      ]}>
       <AppText variant="caption" tone="textSecondary">
         {label}
       </AppText>

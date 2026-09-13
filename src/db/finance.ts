@@ -31,29 +31,37 @@ export type Transaction = {
   note: string;
   /** Stała opłata, z której powstał wpis („Zapłacone”), albo null. */
   bill_id: number | null;
+  /** Podróż, z której jest wydatek, albo null. */
+  trip_id: number | null;
   created_at: string;
-  /** Tylko w zapytaniach z TRANSACTION_COLUMNS. */
+  /** Tylko w zapytaniach z TRANSACTION_SELECT. */
   category_name?: string | null;
   category_icon?: string | null;
   category_color?: string | null;
+  trip_name?: string | null;
+  trip_icon?: string | null;
 };
 
 export type TransactionInput = Pick<Transaction, 'type' | 'amount' | 'category_id' | 'date' | 'note'> & {
   bill_id?: number | null;
+  trip_id?: number | null;
 };
 
 /** Tabele, od których zależą ekrany finansów (do useQuery). */
-export const FINANCE_TABLES: readonly Table[] = ['transactions', 'finance_categories'];
+export const FINANCE_TABLES: readonly Table[] = ['transactions', 'finance_categories', 'trips'];
 
 export const CATEGORIES_SQL = 'SELECT * FROM finance_categories ORDER BY type, sort_order, id';
 
-/** Wpis razem z nazwą, emoji i kolorem kategorii. */
-const TRANSACTION_COLUMNS = `t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color`;
+/** Wpisy razem z nazwą, emoji i kolorem kategorii oraz podróżą (dopisz WHERE / ORDER BY po aliasie `t`). */
+export const TRANSACTION_SELECT = `
+  SELECT t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color,
+    r.name AS trip_name, r.icon AS trip_icon
+  FROM transactions t
+  LEFT JOIN finance_categories c ON c.id = t.category_id
+  LEFT JOIN trips r ON r.id = t.trip_id`;
 
 /** Wpisy z okresu, od najnowszego. */
-export const TRANSACTIONS_RANGE_SQL = `
-  SELECT ${TRANSACTION_COLUMNS}
-  FROM transactions t LEFT JOIN finance_categories c ON c.id = t.category_id
+export const TRANSACTIONS_RANGE_SQL = `${TRANSACTION_SELECT}
   WHERE t.date BETWEEN $from AND $to
   ORDER BY t.date DESC, t.id DESC`;
 
@@ -67,20 +75,29 @@ export function getTransaction(db: SQLiteDatabase, id: number) {
 }
 
 function transactionParams(input: TransactionInput) {
-  return { $type: input.type, $amount: input.amount, $category: input.category_id, $date: input.date, $note: input.note };
+  return {
+    $type: input.type,
+    $amount: input.amount,
+    $category: input.category_id,
+    $date: input.date,
+    $note: input.note,
+    $trip: input.trip_id ?? null,
+  };
 }
 
 export function createTransaction(db: SQLiteDatabase, input: TransactionInput) {
   return db.runAsync(
-    `INSERT INTO transactions (type, amount, category_id, date, note, bill_id)
-     VALUES ($type, $amount, $category, $date, $note, $bill)`,
+    `INSERT INTO transactions (type, amount, category_id, date, note, bill_id, trip_id)
+     VALUES ($type, $amount, $category, $date, $note, $bill, $trip)`,
     { ...transactionParams(input), $bill: input.bill_id ?? null },
   );
 }
 
+/** Opłata (bill_id) się nie zmienia; podróż ustawia edytor wpisu. */
 export function updateTransaction(db: SQLiteDatabase, id: number, input: TransactionInput) {
   return db.runAsync(
-    `UPDATE transactions SET type = $type, amount = $amount, category_id = $category, date = $date, note = $note
+    `UPDATE transactions SET type = $type, amount = $amount, category_id = $category, date = $date, note = $note,
+       trip_id = $trip
      WHERE id = $id`,
     { ...transactionParams(input), $id: id },
   );

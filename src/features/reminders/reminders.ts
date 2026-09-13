@@ -9,6 +9,7 @@ import { formatMoney } from '@/features/finance/money';
 import { formatAmount } from '@/features/habits/amount';
 import { isScheduled } from '@/features/habits/streak';
 import { addDays, formatDayShort, fromDateKey, startOfWeek, todayKey, type DateKey } from '@/lib/dates';
+import { plural } from '@/lib/format';
 
 /**
  * Lokalne powiadomienia: przypomnienia o nawykach, o zadaniach z godziną i o wieczornym podsumowaniu.
@@ -27,6 +28,7 @@ const CHANNELS = {
   meds: 'Leki i suplementy',
   bills: 'Płatności',
   home: 'Dom',
+  trips: 'Podróże',
 } as const;
 
 /** Dawki leków planujemy na krócej — każda godzina każdego dnia to osobne powiadomienie. */
@@ -35,10 +37,12 @@ const MEDS_DAYS_AHEAD = 7;
 const DUE_DAYS_AHEAD = 60;
 /** Koniec gwarancji — przypomnienie tyle dni wcześniej. */
 const WARRANTY_NOTICE_DAYS = 30;
+/** Przypomnienie o pakowaniu — wieczorem dzień przed wyjazdem. */
+const TRIP_REMINDER_TIME = '18:00';
 type ChannelId = keyof typeof CHANNELS;
 
 /** Każde zaplanowane przez nas powiadomienie ma identyfikator z jednym z tych przedrostków. */
-const PREFIXES = ['habit:', 'task:', 'review:', 'weekly:', 'med:', 'bill:', 'chore:', 'warranty:'];
+const PREFIXES = ['habit:', 'task:', 'review:', 'weekly:', 'med:', 'bill:', 'chore:', 'warranty:', 'trip:'];
 
 /**
  * W Expo Go na Androidzie sam import expo-notifications rzuca błąd (push usunięto z Expo Go w SDK 53),
@@ -333,6 +337,32 @@ async function planWarranties(db: SQLiteDatabase, today: DateKey, now: number): 
     .filter((planned) => planned.at.getTime() > now);
 }
 
+async function planTrips(db: SQLiteDatabase, today: DateKey, now: number): Promise<Planned[]> {
+  const trips = await db.getAllAsync<{ id: number; name: string; icon: string; start_date: DateKey; total: number; remaining: number }>(
+    `SELECT t.id, t.name, t.icon, t.start_date,
+       (SELECT COUNT(*) FROM trip_items i WHERE i.trip_id = t.id AND i.kind = 'pack') AS total,
+       (SELECT COUNT(*) FROM trip_items i WHERE i.trip_id = t.id AND i.kind = 'pack' AND i.done = 0) AS remaining
+     FROM trips t WHERE t.start_date > $today AND t.start_date <= $until`,
+    { $today: today, $until: addDays(today, DUE_DAYS_AHEAD) },
+  );
+  return trips
+    .map((trip) => ({
+      // Liczba rzeczy do spakowania w identyfikatorze — zmiana listy odświeża treść powiadomienia.
+      id: `trip:${trip.id}:${trip.start_date}:${hash(`${trip.name}|${trip.remaining}|${trip.total}`)}`,
+      at: atTime(addDays(trip.start_date, -1), TRIP_REMINDER_TIME),
+      title: `${trip.icon} Jutro wyjazd: ${trip.name}`,
+      body:
+        trip.remaining > 0
+          ? `Do spakowania: ${plural(trip.remaining, ['rzecz', 'rzeczy', 'rzeczy'])}. Sprawdź listę przed wyjazdem.`
+          : trip.total > 0
+            ? 'Wszystko spakowane — udanej podróży!'
+            : 'Dokumenty, bilety, ładowarka? Udanej podróży!',
+      url: `/podroz/${trip.id}`,
+      channel: 'trips' as const,
+    }))
+    .filter((planned) => planned.at.getTime() > now);
+}
+
 async function sync(db: SQLiteDatabase) {
   const Notifications = getNotifications();
   if (!Notifications) return;
@@ -356,6 +386,7 @@ async function sync(db: SQLiteDatabase) {
       ...(await planBills(db, today, now)),
       ...(await planChores(db, today, now)),
       ...(await planWarranties(db, today, now)),
+      ...(await planTrips(db, today, now)),
     ];
     for (const item of planned) wanted.set(item.id, item);
   }

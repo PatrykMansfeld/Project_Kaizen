@@ -1,10 +1,10 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Chip, ChipRow } from '@/components/chip';
 import { ColorSwatches } from '@/components/color-swatches';
 import { useThemePreferences, type ThemeMode } from '@/theme/preferences';
-import { ACCENTS, spacing, type AccentKey } from '@/theme/theme';
+import { ACCENTS, THEME_STYLES, buildTheme, radius, spacing, type AccentKey, type ThemeStyle } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 const MODES: { mode: ThemeMode; label: string }[] = [
@@ -14,36 +14,115 @@ const MODES: { mode: ThemeMode; label: string }[] = [
 ];
 
 const ACCENT_KEYS = Object.keys(ACCENTS) as AccentKey[];
+const STYLE_KEYS = Object.keys(THEME_STYLES) as ThemeStyle[];
 
-/** Sekcja „Wygląd” w Ustawieniach: tryb jasny/ciemny i kolor akcentu. */
+/** Sekcja „Wygląd” w Ustawieniach: styl, tryb jasny/ciemny i (w stylu klasycznym) kolor akcentu. */
 export function AppearanceSettings() {
   const { dark, colors } = useTheme();
-  const { mode, accent, setMode, setAccent } = useThemePreferences();
+  const { mode, accent, style, setMode, setAccent, setStyle } = useThemePreferences();
 
   return (
     <View style={styles.container}>
       <AppText variant="label" tone="textSecondary">
-        Motyw
+        Styl
+      </AppText>
+      <View style={styles.styles}>
+        {STYLE_KEYS.map((key) => (
+          <StyleOption key={key} styleKey={key} accent={accent} selected={style === key} onPress={() => setStyle(key)} />
+        ))}
+      </View>
+
+      <AppText variant="label" tone="textSecondary">
+        Tryb
       </AppText>
       <ChipRow>
         {MODES.map((option) => (
           <Chip key={option.mode} label={option.label} selected={mode === option.mode} onPress={() => setMode(option.mode)} />
         ))}
       </ChipRow>
-      <AppText variant="label" tone="textSecondary">
-        Kolor akcentu
-      </AppText>
-      <ColorSwatches
-        swatches={ACCENT_KEYS.map((key) => ({ key, label: ACCENTS[key].label, color: ACCENTS[key][dark ? 'dark' : 'light'][0] }))}
-        value={accent}
-        onChange={setAccent}
-        checkColor={colors.onAccent}
-        size={40}
-      />
+      {THEME_STYLES[style].modes ? (
+        <AppText variant="caption" tone="textMuted">
+          {THEME_STYLES[style].modes}
+        </AppText>
+      ) : (
+        <>
+          <AppText variant="label" tone="textSecondary">
+            Kolor akcentu
+          </AppText>
+          <ColorSwatches
+            swatches={ACCENT_KEYS.map((key) => ({ key, label: ACCENTS[key].label, color: ACCENTS[key][dark ? 'dark' : 'light'][0] }))}
+            value={accent}
+            onChange={setAccent}
+            checkColor={colors.onAccent}
+            size={40}
+          />
+        </>
+      )}
     </View>
   );
 }
 
+type StyleOptionProps = { styleKey: ThemeStyle; accent: AccentKey; selected: boolean; onPress: () => void };
+
+/** Wiersz stylu z podglądem obu wersji (jasnej i ciemnej). */
+function StyleOption({ styleKey, accent, selected, onPress }: StyleOptionProps) {
+  const { colors } = useTheme();
+  const info = THEME_STYLES[styleKey];
+  const previews = [buildTheme(styleKey, false, accent), buildTheme(styleKey, true, accent)];
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${info.label}: ${info.description}`}
+      style={[styles.option, { borderColor: selected ? colors.accent : colors.border, backgroundColor: colors.surface }]}>
+      <View style={styles.previews}>
+        {previews.map((preview) => (
+          <View key={String(preview.dark)} style={[styles.preview, { backgroundColor: preview.colors.background }]}>
+            <View style={[styles.previewBar, { backgroundColor: styleKey === 'vaporwave' ? preview.colors.chrome : preview.colors.background }]}>
+              {styleKey === 'vaporwave' ? <View style={[styles.previewSun, { backgroundColor: preview.colors.decorAlt }]} /> : null}
+              {styleKey === 'zen' ? <View style={[styles.previewSeal, { backgroundColor: preview.colors.decorAlt }]} /> : null}
+            </View>
+            <View
+              style={[
+                styles.previewCard,
+                { backgroundColor: preview.colors.surface, borderColor: preview.colors.cardBorder, borderWidth: preview.cardBorderWidth ? 1 : 0 },
+              ]}>
+              <View style={[styles.previewLine, { backgroundColor: preview.colors.accent }]} />
+              <View style={[styles.previewLine, styles.previewShort, { backgroundColor: preview.colors.habits }]} />
+            </View>
+          </View>
+        ))}
+      </View>
+      <View style={styles.optionText}>
+        <AppText variant="bodyStrong" style={styleNameFont(previews[0].display?.family)}>
+          {info.label}
+        </AppText>
+        <AppText variant="caption" tone="textSecondary" numberOfLines={2}>
+          {info.description}
+        </AppText>
+      </View>
+    </Pressable>
+  );
+}
+
+/** Nazwa stylu jego własnym krojem (np. „Zen” Garamondem). */
+function styleNameFont(family: string | undefined) {
+  return family ? { fontFamily: family, fontWeight: 'normal' as const, fontSize: 20, lineHeight: 24 } : undefined;
+}
+
 const styles = StyleSheet.create({
   container: { gap: spacing.md },
+  styles: { gap: spacing.sm },
+  option: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.sm, borderRadius: radius.md, borderWidth: 2 },
+  optionText: { flex: 1, gap: 2 },
+  previews: { flexDirection: 'row', gap: spacing.xs, width: 128 },
+  preview: { flex: 1, height: 64, borderRadius: radius.sm, overflow: 'hidden' },
+  previewBar: { height: 18, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: 6, overflow: 'hidden' },
+  previewSun: { width: 16, height: 8, borderTopLeftRadius: 8, borderTopRightRadius: 8 },
+  previewSeal: { width: 5, height: 7, borderRadius: 1, marginLeft: 1, marginBottom: 2 },
+  previewCard: { margin: 6, padding: 5, gap: 4, borderRadius: 5, borderWidth: 1 },
+  previewLine: { height: 4, borderRadius: 2 },
+  previewShort: { width: '60%' },
 });

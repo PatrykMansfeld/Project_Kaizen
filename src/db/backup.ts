@@ -10,7 +10,7 @@ import { plural } from '@/lib/format';
 
 /**
  * Tabele w kopii, w kolejności wstawiania (rodzice przed dziećmi). Ustawienia urządzenia nie trafiają do kopii
- * (poza BACKUP_SETTINGS), podobnie zdjęcia z notatek (to pliki, nie da się ich sensownie zapisać w JSON-ie).
+ * (poza BACKUP_SETTINGS), podobnie zdjęcia z notatek i podróży (to pliki, nie da się ich sensownie zapisać w JSON-ie).
  */
 export const BACKUP_TABLES = [
   'exercises',
@@ -34,6 +34,8 @@ export const BACKUP_TABLES = [
   'weekly_reviews',
   'finance_categories',
   'recurring_bills',
+  'trips',
+  'trip_items',
   'transactions',
   'medications',
   'medication_logs',
@@ -43,6 +45,7 @@ export const BACKUP_TABLES = [
   'warranties',
   'meters',
   'meter_readings',
+  'media_items',
 ] as const;
 
 /** Ustawienia, które są danymi (a nie preferencjami telefonu) — trafiają do kopii. */
@@ -162,6 +165,8 @@ function checkReferences({ data }: Backup) {
     ['medication_logs', 'medication_id', 'medications'],
     ['practice_sessions', 'skill_id', 'skills'],
     ['meter_readings', 'meter_id', 'meters'],
+    ['trip_items', 'trip_id', 'trips'],
+    ['transactions', 'trip_id', 'trips'],
   ];
   for (const [table, column, parent] of references) {
     const parentIds = ids(data[parent]);

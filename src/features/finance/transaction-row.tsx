@@ -10,10 +10,12 @@ import { useTheme } from '@/theme/use-theme';
 
 import { formatSignedMoney } from './money';
 
-/** Wiersz wydatku / przychodu; stuknięcie otwiera edycję. */
-export function TransactionRow({ transaction }: { transaction: Transaction }) {
+/** Wiersz wydatku / przychodu; stuknięcie otwiera edycję. `hideTrip` — na ekranie samej podróży. */
+export function TransactionRow({ transaction, hideTrip = false }: { transaction: Transaction; hideTrip?: boolean }) {
   const { colors, dark } = useTheme();
   const color = transaction.category_color ? paletteColor(transaction.category_color, dark) : colors.textMuted;
+  const trip = !hideTrip && transaction.trip_name ? `${transaction.trip_icon ?? '✈️'} ${transaction.trip_name}` : null;
+  const detail = [trip, transaction.note].filter(Boolean).join(' · ');
 
   return (
     <Card
@@ -23,9 +25,9 @@ export function TransactionRow({ transaction }: { transaction: Transaction }) {
       <EmojiBadge emoji={transaction.category_icon ?? (transaction.type === 'income' ? '💰' : '📦')} color={color} size={36} />
       <View style={styles.body}>
         <AppText numberOfLines={1}>{transaction.category_name ?? 'Bez kategorii'}</AppText>
-        {transaction.note ? (
+        {detail ? (
           <AppText variant="caption" tone="textSecondary" numberOfLines={1}>
-            {transaction.note}
+            {detail}
           </AppText>
         ) : null}
       </View>

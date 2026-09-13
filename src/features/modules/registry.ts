@@ -15,6 +15,8 @@ export const TAB_MODULES = [
   'leki',
   'umiejetnosci',
   'dom',
+  'filmy',
+  'podroze',
   'statystyki',
   'moduly',
 ] as const;
@@ -38,7 +40,7 @@ export type ModuleKey =
   | 'szukaj'
   | 'ustawienia';
 
-export type ModuleGroup = 'Na co dzień' | 'Zdrowie i ciało' | 'Rozwój' | 'Finanse i dom' | 'Przegląd' | 'Aplikacja';
+export type ModuleGroup = 'Na co dzień' | 'Zdrowie i ciało' | 'Rozwój' | 'Finanse i dom' | 'Czas wolny' | 'Przegląd' | 'Aplikacja';
 
 export type ModuleInfo = {
   key: ModuleKey;
@@ -55,7 +57,7 @@ export type ModuleInfo = {
   required?: boolean;
 };
 
-export const MODULE_GROUPS: ModuleGroup[] = ['Na co dzień', 'Zdrowie i ciało', 'Rozwój', 'Finanse i dom', 'Przegląd', 'Aplikacja'];
+export const MODULE_GROUPS: ModuleGroup[] = ['Na co dzień', 'Zdrowie i ciało', 'Rozwój', 'Finanse i dom', 'Czas wolny', 'Przegląd', 'Aplikacja'];
 
 export const MODULES: Record<ModuleKey, ModuleInfo> = {
   dzis: { key: 'dzis', label: 'Dziś', icon: 'today', color: 'accent', description: 'Kalendarz i plan dnia', group: 'Na co dzień', required: true },
@@ -124,6 +126,15 @@ export const MODULES: Record<ModuleKey, ModuleInfo> = {
   finanse: { key: 'finanse', label: 'Wydatki', icon: 'payments', color: 'finance', description: 'Budżet i kategorie', group: 'Finanse i dom' },
   oplaty: { key: 'oplaty', label: 'Stałe opłaty', tabLabel: 'Opłaty', icon: 'event_repeat', color: 'finance', description: 'Rachunki i subskrypcje', group: 'Finanse i dom' },
   dom: { key: 'dom', label: 'Dom', icon: 'home', color: 'notes', description: 'Obowiązki, gwarancje, liczniki', group: 'Finanse i dom' },
+  filmy: {
+    key: 'filmy',
+    label: 'Kultura',
+    icon: 'theater_comedy',
+    color: 'journal',
+    description: 'Filmy, seriale, anime, książki, manga, gry',
+    group: 'Czas wolny',
+  },
+  podroze: { key: 'podroze', label: 'Podróże', icon: 'flight', color: 'tasks', description: 'Plan, pakowanie, wydatki', group: 'Czas wolny' },
   statystyki: { key: 'statystyki', label: 'Statystyki', icon: 'insights', color: 'accent', description: 'Tydzień i miesiąc w liczbach', group: 'Przegląd' },
   wnioski: { key: 'wnioski', label: 'Wnioski', icon: 'lightbulb', color: 'accent', description: 'Co ci pomaga', group: 'Przegląd', href: () => '/wnioski' },
   rok: { key: 'rok', label: 'Rok w pikselach', icon: 'calendar_view_month', color: 'accent', description: 'Cały rok na siatce', group: 'Przegląd', href: () => '/rok' },
@@ -161,6 +172,8 @@ export const TAB_HREFS: Record<TabModuleKey, Href> = {
   leki: '/leki',
   umiejetnosci: '/umiejetnosci',
   dom: '/dom',
+  filmy: '/filmy',
+  podroze: '/podroze',
   statystyki: '/statystyki',
   moduly: '/moduly',
 };

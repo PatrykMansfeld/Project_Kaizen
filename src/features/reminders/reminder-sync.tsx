@@ -17,6 +17,8 @@ const WATCHED = new Set([
   'recurring_bills',
   'home_chores',
   'warranties',
+  'trips',
+  'trip_items',
 ]);
 
 /**

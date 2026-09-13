@@ -35,7 +35,11 @@ export type Table =
   | 'home_chores'
   | 'warranties'
   | 'meters'
-  | 'meter_readings';
+  | 'meter_readings'
+  | 'media_items'
+  | 'trips'
+  | 'trip_items'
+  | 'trip_photos';
 
 /**
  * Wykonuje SELECT i ponawia go automatycznie, gdy zmieni się któraś z tabel w `tables`.

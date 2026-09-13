@@ -4,17 +4,20 @@ import { EXPENSES_SUM_SQL } from '@/db/finance';
 import { CHORES_DUE_COUNT_SQL } from '@/db/home';
 import { MEDICATIONS_SQL, MED_LOGS_DAY_SQL, type Medication, type MedicationLog } from '@/db/meds';
 import { SLEEP_DAY_SQL, type SleepLog } from '@/db/sleep';
+import { TRIP_OPTIONS_SQL, type Trip } from '@/db/trips';
 import { useQuery, useSetting } from '@/db/use-query';
 import { formatMoney } from '@/features/finance/money';
 import { dosesForDay } from '@/features/meds/meds';
 import { useModulePreferences, useOpenModule } from '@/features/modules/preferences';
 import type { ModuleKey } from '@/features/modules/registry';
+import { openTrip } from '@/features/trips/trips-screen';
+import { highlightedTrip, tripStatusLabel } from '@/features/trips/trips';
 import { addDays, type DateKey } from '@/lib/dates';
 import { formatDuration, plural } from '@/lib/format';
 import { useTheme } from '@/theme/use-theme';
 
 /**
- * Skróty na ekranie Dziś. Stałe (cele, podsumowanie, sen, przegląd, wydatki) i kontekstowe — opłaty, leki
+ * Skróty na ekranie Dziś. Stałe (cele, podsumowanie, sen, przegląd, wydatki) i kontekstowe — podróż, opłaty, leki
  * i obowiązki pojawiają się tylko, gdy coś na dziś czeka. Ukryte moduły nie mają skrótów.
  */
 export function TodayShortcuts({ today }: { today: DateKey }) {
@@ -30,6 +33,7 @@ export function TodayShortcuts({ today }: { today: DateKey }) {
   const { rows: choreRows } = useQuery<{ n: number }>(CHORES_DUE_COUNT_SQL, { $today: today }, ['home_chores']);
   const { rows: meds } = useQuery<Medication>(MEDICATIONS_SQL, [], ['medications']);
   const { rows: medLogs } = useQuery<MedicationLog>(MED_LOGS_DAY_SQL, { $date: today }, ['medication_logs']);
+  const { rows: trips } = useQuery<Trip>(TRIP_OPTIONS_SQL, [], ['trips']);
 
   const sleep = sleepRows[0];
   const spent = spentRows[0]?.total ?? 0;
@@ -38,9 +42,17 @@ export function TodayShortcuts({ today }: { today: DateKey }) {
   const doses = dosesForDay(meds, today);
   const taken = new Set(medLogs.map((log) => `${log.medication_id}|${log.time}`));
   const dosesTaken = doses.filter((dose) => taken.has(`${dose.med.id}|${dose.time}`)).length;
+  const trip = shown('podroze') ? highlightedTrip(trips, today) : null;
 
   return (
     <ChipRow>
+      {trip ? (
+        <Chip
+          label={`${trip.icon} ${trip.name} · ${tripStatusLabel(trip, today)}`}
+          selected={false}
+          onPress={() => openTrip(trip.id)}
+        />
+      ) : null}
       {shown('cele') ? <Chip label="Cele" icon="sports_score" selected={false} onPress={() => open('cele')} /> : null}
       {shown('podsumowanie') ? (
         <Chip

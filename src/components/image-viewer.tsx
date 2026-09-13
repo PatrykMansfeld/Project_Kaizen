@@ -3,13 +3,12 @@ import { Modal, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { IconButton } from '@/components/button';
-import type { NoteImage } from '@/db/notes';
 import { spacing } from '@/theme/theme';
 
-type Props = { image: NoteImage | null; onClose: () => void; onDelete: (image: NoteImage) => void };
+type Props<T extends { uri: string }> = { image: T | null; onClose: () => void; onDelete: (image: T) => void };
 
-/** Zdjęcie z notatki na cały ekran, z zamykaniem i usuwaniem. */
-export function ImageViewer({ image, onClose, onDelete }: Props) {
+/** Zdjęcie (z notatki, z podróży) na cały ekran, z zamykaniem i usuwaniem. */
+export function ImageViewer<T extends { uri: string }>({ image, onClose, onDelete }: Props<T>) {
   const insets = useSafeAreaInsets();
 
   return (

@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-import { createTransaction } from '@/db/finance';
+import { TRANSACTION_SELECT, createTransaction } from '@/db/finance';
 import type { Table } from '@/db/use-query';
 import type { DateKey } from '@/lib/dates';
 
@@ -40,10 +40,7 @@ export const BILLS_SQL = 'SELECT * FROM recurring_bills ORDER BY active DESC, ne
 export const BILLS_DUE_COUNT_SQL = 'SELECT COUNT(*) AS n FROM recurring_bills WHERE active = 1 AND next_due <= $until';
 
 /** Historia płatności opłaty (wydatki zapisane przyciskiem „Zapłacone”). */
-export const BILL_PAYMENTS_SQL = `
-  SELECT t.*, c.name AS category_name, c.icon AS category_icon, c.color AS category_color
-  FROM transactions t LEFT JOIN finance_categories c ON c.id = t.category_id
-  WHERE t.bill_id = $bill ORDER BY t.date DESC, t.id DESC`;
+export const BILL_PAYMENTS_SQL = `${TRANSACTION_SELECT} WHERE t.bill_id = $bill ORDER BY t.date DESC, t.id DESC`;
 
 export function getBill(db: SQLiteDatabase, id: number) {
   return db.getFirstAsync<Bill>('SELECT * FROM recurring_bills WHERE id = ?', id);

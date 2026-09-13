@@ -404,6 +404,96 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX meter_readings_meter ON meter_readings (meter_id, date);
   `,
+  `
+  -- Filmy, seriale i gry: lista „do obejrzenia”, w trakcie, ukończone (z oceną 1–5).
+  CREATE TABLE media_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK (kind IN ('movie', 'series', 'game')),
+    title TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('planned', 'active', 'done', 'dropped')),
+    rating INTEGER CHECK (rating BETWEEN 1 AND 5),
+    -- Gdzie: Netflix, kino, PS5…
+    platform TEXT NOT NULL DEFAULT '',
+    release_year INTEGER CHECK (release_year BETWEEN 1850 AND 2200),
+    -- Postęp serialu: sezon i ostatni obejrzany odcinek.
+    season INTEGER CHECK (season >= 1),
+    episode INTEGER CHECK (episode >= 0),
+    started_on TEXT,
+    finished_on TEXT,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX media_items_status ON media_items (status, finished_on);
+
+  CREATE TABLE trips (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    destination TEXT NOT NULL DEFAULT '',
+    icon TEXT NOT NULL,
+    color TEXT NOT NULL,
+    start_date TEXT NOT NULL,
+    end_date TEXT NOT NULL,
+    -- Budżet wyjazdu w groszach.
+    budget INTEGER CHECK (budget > 0),
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    CHECK (end_date >= start_date)
+  );
+  -- Lista pakowania (kind = 'pack', z kategorią) i plan wyjazdu (kind = 'plan', dzień i godzina opcjonalne).
+  CREATE TABLE trip_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trip_id INTEGER NOT NULL REFERENCES trips (id) ON DELETE CASCADE,
+    kind TEXT NOT NULL CHECK (kind IN ('pack', 'plan')),
+    text TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '',
+    done INTEGER NOT NULL DEFAULT 0,
+    date TEXT,
+    time TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX trip_items_trip ON trip_items (trip_id, kind);
+  -- Zdjęcia jak w notatkach: plik w katalogu aplikacji, w bazie ścieżka.
+  CREATE TABLE trip_photos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    trip_id INTEGER NOT NULL REFERENCES trips (id) ON DELETE CASCADE,
+    uri TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX trip_photos_trip ON trip_photos (trip_id, position);
+  -- Wydatek z wyjazdu wskazuje na podróż (zostaje w Wydatkach, gdy podróż zniknie).
+  ALTER TABLE transactions ADD COLUMN trip_id INTEGER REFERENCES trips (id) ON DELETE SET NULL;
+  CREATE INDEX transactions_trip ON transactions (trip_id);
+  `,
+  `
+  -- Kultura: do filmów, seriali i gier dochodzą książki, manga i anime (CHECK wymaga przebudowy tabeli),
+  -- autor (książki, manga) i łączna liczba stron. Postęp: season/episode to sezon i odcinek (serial, anime),
+  -- tom i rozdział (manga) albo — w episode — bieżąca strona książki.
+  CREATE TABLE media_items_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK (kind IN ('movie', 'series', 'anime', 'book', 'manga', 'game')),
+    title TEXT NOT NULL,
+    creator TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('planned', 'active', 'done', 'dropped')),
+    rating INTEGER CHECK (rating BETWEEN 1 AND 5),
+    platform TEXT NOT NULL DEFAULT '',
+    release_year INTEGER CHECK (release_year BETWEEN 1000 AND 2200),
+    season INTEGER CHECK (season >= 1),
+    episode INTEGER CHECK (episode >= 0),
+    total INTEGER CHECK (total > 0),
+    started_on TEXT,
+    finished_on TEXT,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  INSERT INTO media_items_new (id, kind, title, status, rating, platform, release_year, season, episode, started_on, finished_on, note, created_at)
+    SELECT id, kind, title, status, rating, platform, release_year, season, episode, started_on, finished_on, note, created_at
+    FROM media_items;
+  DROP TABLE media_items;
+  ALTER TABLE media_items_new RENAME TO media_items;
+  CREATE INDEX media_items_status ON media_items (status, finished_on);
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

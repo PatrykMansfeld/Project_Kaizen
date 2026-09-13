@@ -2,14 +2,16 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { IconName } from '@/components/icon';
 import type { TransactionType } from '@/db/finance';
+import type { MediaKind, MediaStatus } from '@/db/media';
 import { WORKOUT_TYPES, type WorkoutType } from '@/features/activity/workout-types';
 import { formatSignedMoney } from '@/features/finance/money';
+import { MEDIA_KINDS } from '@/features/media/media';
 import { notePreview, stripMarkdown } from '@/features/notes/markdown';
 import type { DateKey } from '@/lib/dates';
 import { matchesSearch } from '@/lib/search';
 import type { ThemeColors } from '@/theme/theme';
 
-export type SearchKind = 'task' | 'note' | 'journal' | 'habit' | 'workout' | 'transaction';
+export type SearchKind = 'task' | 'note' | 'journal' | 'habit' | 'workout' | 'transaction' | 'trip' | 'media';
 
 export type SearchResult = {
   key: string;
@@ -20,7 +22,10 @@ export type SearchResult = {
   date: DateKey | null;
   /** Dokąd prowadzi stuknięcie. */
   target:
-    | { pathname: '/zadanie/[id]' | '/notatka/[id]' | '/nawyk/[id]' | '/trening/[id]' | '/finanse/transakcja/[id]'; params: { id: string } }
+    | {
+        pathname: '/zadanie/[id]' | '/notatka/[id]' | '/nawyk/[id]' | '/trening/[id]' | '/finanse/transakcja/[id]' | '/podroz/[id]' | '/tytul/[id]';
+        params: { id: string };
+      }
     | {
     pathname: '/dziennik/[date]';
     params: { date: string };
@@ -34,6 +39,8 @@ export const SEARCH_KINDS: Record<SearchKind, { label: string; icon: IconName; c
   habit: { label: 'Nawyki', icon: 'check_circle', color: 'habits' },
   workout: { label: 'Treningi', icon: 'directions_run', color: 'activity' },
   transaction: { label: 'Wydatki', icon: 'payments', color: 'finance' },
+  trip: { label: 'Podróże', icon: 'flight', color: 'tasks' },
+  media: { label: 'Kultura', icon: 'theater_comedy', color: 'journal' },
 };
 
 const LIMIT_PER_KIND = 20;
@@ -44,7 +51,7 @@ const LIMIT_PER_KIND = 20;
  * `query` musi być już znormalizowane (normalizeForSearch).
  */
 export async function searchEverything(db: SQLiteDatabase, query: string): Promise<SearchResult[]> {
-  const [tasks, subtasks, notes, journal, habits, workouts, transactions] = await Promise.all([
+  const [tasks, subtasks, notes, journal, habits, workouts, transactions, trips, tripItems, media] = await Promise.all([
     db.getAllAsync<{ id: number; title: string; notes: string; due_date: DateKey | null; completed_at: string | null }>(
       'SELECT id, title, notes, due_date, completed_at FROM tasks ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, id DESC',
     ),
@@ -63,6 +70,13 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
       `SELECT t.id, t.type, t.amount, t.date, t.note, c.name AS category, c.icon
        FROM transactions t LEFT JOIN finance_categories c ON c.id = t.category_id
        ORDER BY t.date DESC, t.id DESC`,
+    ),
+    db.getAllAsync<{ id: number; name: string; icon: string; destination: string; note: string; start_date: DateKey }>(
+      'SELECT id, name, icon, destination, note, start_date FROM trips ORDER BY start_date DESC',
+    ),
+    db.getAllAsync<{ trip_id: number; text: string }>("SELECT trip_id, text FROM trip_items WHERE kind = 'plan'"),
+    db.getAllAsync<{ id: number; kind: MediaKind; title: string; creator: string; status: MediaStatus; platform: string; note: string; finished_on: DateKey | null }>(
+      'SELECT id, kind, title, creator, status, platform, note, finished_on FROM media_items ORDER BY finished_on DESC, id DESC',
     ),
   ]);
 
@@ -155,6 +169,43 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
         body: transaction.note,
         date: transaction.date,
         target: { pathname: '/finanse/transakcja/[id]' as const, params: { id: String(transaction.id) } },
+      })),
+  );
+
+  // Podróż pasuje też po punkcie planu („Koloseum”).
+  const planByTrip = new Map<number, string[]>();
+  for (const item of tripItems) {
+    if (!planByTrip.has(item.trip_id)) planByTrip.set(item.trip_id, []);
+    planByTrip.get(item.trip_id)!.push(item.text);
+  }
+  push(
+    trips
+      .map((trip) => {
+        const matchedPlan = planByTrip.get(trip.id)?.find((text) => matchesSearch(text, query));
+        const own = `${trip.name}\n${trip.destination}\n${trip.note}`;
+        if (!matchesSearch(own, query) && !matchedPlan) return null;
+        return {
+          key: `trip:${trip.id}`,
+          kind: 'trip' as const,
+          title: `${trip.icon} ${trip.name}`,
+          body: matchesSearch(own, query) ? [trip.destination, trip.note].filter(Boolean).join('\n') : (matchedPlan ?? ''),
+          date: trip.start_date,
+          target: { pathname: '/podroz/[id]' as const, params: { id: String(trip.id) } },
+        };
+      })
+      .filter((result) => result !== null),
+  );
+
+  push(
+    media
+      .filter((item) => matchesSearch(`${item.title}\n${item.creator}\n${item.platform}\n${item.note}`, query))
+      .map((item) => ({
+        key: `media:${item.id}`,
+        kind: 'media' as const,
+        title: `${MEDIA_KINDS[item.kind].emoji} ${item.title}`,
+        body: item.note || [item.creator, MEDIA_KINDS[item.kind].statuses[item.status], item.platform].filter(Boolean).join(' · '),
+        date: item.finished_on,
+        target: { pathname: '/tytul/[id]' as const, params: { id: String(item.id) } },
       })),
   );
 

@@ -16,7 +16,7 @@ export default function TabsLayout() {
 
   return (
     <NativeTabs
-      backgroundColor={colors.surface}
+      backgroundColor={colors.chrome}
       indicatorColor={colors.accentSoft}
       rippleColor={colors.accentSoft}
       iconColor={{ default: colors.textSecondary, selected: colors.accent }}

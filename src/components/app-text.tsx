@@ -9,9 +9,23 @@ export type AppTextProps = TextProps & {
   tone?: keyof ThemeColors;
 };
 
+/** Warianty pisane krojem tytułowym stylu (VT323 w vaporwave, Garamond w zen) — z rozmiarami z motywu. */
+const DISPLAY_VARIANTS = ['title', 'heading'] as const;
+
 export function AppText({ variant = 'body', tone = 'text', style, ...rest }: AppTextProps) {
-  const { colors } = useTheme();
-  return <Text style={[styles[variant], { color: colors[tone] }, style]} {...rest} />;
+  const { colors, display } = useTheme();
+  const displayVariant = display ? DISPLAY_VARIANTS.find((name) => name === variant) : undefined;
+  return (
+    <Text
+      style={[
+        styles[variant],
+        display && displayVariant && [display[displayVariant], { fontFamily: display.family }],
+        { color: colors[tone] },
+        style,
+      ]}
+      {...rest}
+    />
+  );
 }
 
 const styles = StyleSheet.create({

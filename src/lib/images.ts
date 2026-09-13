@@ -3,31 +3,34 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 
 /**
- * Zdjęcia w notatkach kopiujemy do katalogu aplikacji — dzięki temu nie znikną po usunięciu
+ * Zdjęcia (w notatkach, z podróży) kopiujemy do katalogu aplikacji — dzięki temu nie znikną po usunięciu
  * z galerii. W bazie zapisujemy tylko ścieżkę. Pliki nie trafiają do kopii zapasowej JSON.
  */
 
-function imagesDirectory() {
-  const directory = new Directory(Paths.document, 'note-images');
+/** Katalogi zdjęć poszczególnych modułów. */
+export type ImageFolder = 'note-images' | 'trip-photos';
+
+function imagesDirectory(folder: ImageFolder) {
+  const directory = new Directory(Paths.document, folder);
   if (!directory.exists) directory.create({ intermediates: true });
   return directory;
 }
 
 export type PickResult = { uris: string[] } | { denied: true } | null;
 
-/** Wybór zdjęć z galerii i skopiowanie ich do aplikacji. Null = anulowano. */
-export async function pickNoteImages(): Promise<PickResult> {
+/** Wybór zdjęć z galerii i skopiowanie ich do katalogu aplikacji. Null = anulowano. */
+export async function pickImages(folder: ImageFolder, selectionLimit = 10): Promise<PickResult> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) return { denied: true };
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
     allowsMultipleSelection: true,
-    selectionLimit: 10,
+    selectionLimit,
     quality: 0.8,
   });
   if (result.canceled || !result.assets) return null;
 
-  const directory = imagesDirectory();
+  const directory = imagesDirectory(folder);
   const uris: string[] = [];
   for (const asset of result.assets) {
     const extension = asset.fileName?.split('.').pop()?.toLowerCase() || 'jpg';
@@ -38,7 +41,7 @@ export async function pickNoteImages(): Promise<PickResult> {
   return { uris };
 }
 
-/** Usuwa pliki zdjęć (np. po skasowaniu notatki); brakujące pliki pomija. */
+/** Usuwa pliki zdjęć (np. po skasowaniu notatki albo podróży); brakujące pliki pomija. */
 export function deleteImageFiles(uris: string[]) {
   for (const uri of uris) {
     try {

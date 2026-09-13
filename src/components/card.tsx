@@ -16,8 +16,13 @@ type Props = {
 
 /** Zaokrąglone tło w kolorze powierzchni — podstawa kart i wierszy list. */
 export function Card({ children, onPress, variant = 'card', style, accessibilityLabel }: Props) {
-  const { colors } = useTheme();
-  const cardStyle = [variant === 'row' ? styles.row : styles.card, { backgroundColor: colors.surface }, style];
+  const { colors, cardBorderWidth } = useTheme();
+  const cardStyle = [
+    variant === 'row' ? styles.row : styles.card,
+    { backgroundColor: colors.surface },
+    cardBorderWidth > 0 && { borderWidth: cardBorderWidth, borderColor: colors.cardBorder },
+    style,
+  ];
 
   if (!onPress) {
     return (

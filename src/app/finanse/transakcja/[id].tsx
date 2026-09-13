@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
@@ -19,23 +19,32 @@ import {
   type FinanceCategory,
   type TransactionType,
 } from '@/db/finance';
+import { TRIP_OPTIONS_SQL, type Trip } from '@/db/trips';
 import { useQuery } from '@/db/use-query';
 import { moneyInputText, parseMoney } from '@/features/finance/money';
+import { useModuleVisible } from '@/features/modules/preferences';
+import { tripOnDate, tripOptionsForDate } from '@/features/trips/trips';
 import { confirmDelete } from '@/lib/alerts';
 import { addDays, isDateKey, type DateKey } from '@/lib/dates';
 import { useToday } from '@/lib/use-today';
 
-type Form = { type: TransactionType; amount: string; categoryId: number | null; date: DateKey; note: string };
+type Form = { type: TransactionType; amount: string; categoryId: number | null; date: DateKey; note: string; tripId: number | null };
 
-/** Nowy wpis: /finanse/transakcja/nowa (opcjonalnie ?type=income&date=…), edycja: /finanse/transakcja/12. */
+/**
+ * Nowy wpis: /finanse/transakcja/nowa (opcjonalnie ?type=income&date=…&trip=3), edycja: /finanse/transakcja/12.
+ * Nowy wydatek z dnia trwającej podróży sam się do niej przypisuje (widać to i można zmienić).
+ */
 export default function TransactionEditScreen() {
-  const params = useLocalSearchParams<{ id: string; type?: string; date?: string }>();
+  const params = useLocalSearchParams<{ id: string; type?: string; date?: string; trip?: string }>();
   const isNew = params.id === 'nowa';
   const transactionId = Number(params.id);
+  const tripParam = params.trip && /^\d+$/.test(params.trip) ? Number(params.trip) : null;
 
   const db = useSQLiteContext();
   const today = useToday();
+  const tripsVisible = useModuleVisible('podroze');
   const { rows: categories } = useQuery<FinanceCategory>(CATEGORIES_SQL, [], ['finance_categories']);
+  const { rows: trips, loaded: tripsLoaded } = useQuery<Trip>(TRIP_OPTIONS_SQL, [], ['trips']);
 
   const [form, setForm] = useState<Form>({
     type: params.type === 'income' ? 'income' : 'expense',
@@ -43,8 +52,18 @@ export default function TransactionEditScreen() {
     categoryId: null,
     date: isDateKey(params.date) ? params.date : today,
     note: '',
+    tripId: tripParam,
   });
   const [loaded, setLoaded] = useState(isNew);
+  const tripTouched = useRef(tripParam !== null || !isNew);
+
+  // Nowy wydatek w trakcie wyjazdu — domyślnie należy do tej podróży.
+  useEffect(() => {
+    if (!tripsLoaded || tripTouched.current || !tripsVisible) return;
+    tripTouched.current = true;
+    const ongoing = tripOnDate(trips, form.date);
+    if (ongoing) setForm((current) => ({ ...current, tripId: ongoing.id }));
+  }, [tripsLoaded, trips, form.date, tripsVisible]);
 
   useEffect(() => {
     if (isNew) return;
@@ -59,6 +78,7 @@ export default function TransactionEditScreen() {
         categoryId: transaction.category_id,
         date: transaction.date,
         note: transaction.note,
+        tripId: transaction.trip_id,
       });
       setLoaded(true);
     });
@@ -69,6 +89,7 @@ export default function TransactionEditScreen() {
   const amountValid = amount !== null && !Number.isNaN(amount) && amount > 0;
   const canSave = loaded && amountValid;
   const typeCategories = categories.filter((category) => category.type === form.type);
+  const tripOptions = tripOptionsForDate(trips, form.date, form.tripId);
 
   // Zmiana rodzaju czyści kategorię z drugiego rodzaju (wydatek nie trafi do „Wypłaty”).
   const setType = (type: TransactionType) =>
@@ -79,7 +100,14 @@ export default function TransactionEditScreen() {
 
   const save = async () => {
     if (!canSave || amount === null) return;
-    const input = { type: form.type, amount, category_id: form.categoryId, date: form.date, note: form.note.trim() };
+    const input = {
+      type: form.type,
+      amount,
+      category_id: form.categoryId,
+      date: form.date,
+      note: form.note.trim(),
+      trip_id: form.tripId,
+    };
     if (isNew) await createTransaction(db, input);
     else await updateTransaction(db, transactionId, input);
     router.back();
@@ -151,6 +179,22 @@ export default function TransactionEditScreen() {
               ]}
             />
           </Section>
+
+          {tripOptions.length > 0 && (tripsVisible || form.tripId !== null) ? (
+            <Section title="Podróż">
+              <ChipRow>
+                <Chip label="Bez podróży" selected={form.tripId === null} onPress={() => update({ tripId: null })} />
+                {tripOptions.map((trip) => (
+                  <Chip
+                    key={trip.id}
+                    label={`${trip.icon} ${trip.name}`}
+                    selected={form.tripId === trip.id}
+                    onPress={() => update({ tripId: trip.id })}
+                  />
+                ))}
+              </ChipRow>
+            </Section>
+          ) : null}
 
           <TextField
             label="Opis"

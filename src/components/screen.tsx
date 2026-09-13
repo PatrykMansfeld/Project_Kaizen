@@ -4,7 +4,9 @@ import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 're
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
-import { spacing } from '@/theme/theme';
+import { VaporGrid, VaporSun } from '@/components/vapor-decor';
+import { ZenBrush, ZenSeal } from '@/components/zen-decor';
+import { spacing, type ThemeStyle } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 /**
@@ -12,6 +14,21 @@ import { useTheme } from '@/theme/use-theme';
  * nad zakładkami (pasek z tytułem i strzałką wstecz). Tryb ustawia plik trasy — patrz TabScreenMode.
  */
 type ScreenMode = 'tab' | 'stack';
+
+type HeaderDecor = {
+  /** Za tytułem (pod przyciskami, bez interakcji). */
+  behind?: () => ReactNode;
+  /** Tuż za tekstem tytułu. */
+  afterTitle?: () => ReactNode;
+  /** Pas pod nagłówkiem. */
+  below: () => ReactNode;
+};
+
+/** Ozdoby nagłówka zakładki (styl klasyczny ich nie ma). */
+const HEADER_DECOR: Partial<Record<ThemeStyle, HeaderDecor>> = {
+  vaporwave: { behind: VaporSun, below: VaporGrid },
+  zen: { afterTitle: ZenSeal, below: ZenBrush },
+};
 
 const ScreenModeContext = createContext<ScreenMode>('stack');
 
@@ -35,7 +52,10 @@ type Props = {
  */
 export function Screen({ title, subtitle, headerRight, children }: Props) {
   const mode = useContext(ScreenModeContext);
-  const { colors } = useTheme();
+  const { colors, style } = useTheme();
+  const decor = HEADER_DECOR[style];
+  // Vaporwave ma nagłówek w kolorze paska; pozostałe style — w kolorze tła.
+  const headerColor = style === 'vaporwave' ? colors.chrome : colors.background;
   const insets = useSafeAreaInsets();
 
   if (mode === 'stack') {
@@ -54,16 +74,24 @@ export function Screen({ title, subtitle, headerRight, children }: Props) {
     );
   }
 
+  // Vaporwave: za tytułem zachodzące słońce, pod spodem siatka; zen: pieczątka przy tytule i pociągnięcie pędzla.
   return (
-    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={styles.header}>
+    <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: headerColor }]}>
+      <View style={[styles.header, { backgroundColor: headerColor }]}>
+        {decor?.behind ? <decor.behind /> : null}
         <View style={styles.titles}>
-          <AppText variant="title">{title}</AppText>
+          <View style={styles.titleRow}>
+            <AppText variant="title" style={styles.titleText}>
+              {title}
+            </AppText>
+            {decor?.afterTitle ? <decor.afterTitle /> : null}
+          </View>
           {subtitle ? <AppText tone="textSecondary">{subtitle}</AppText> : null}
         </View>
         {headerRight}
       </View>
-      <View style={styles.content}>{children}</View>
+      {decor ? <decor.below /> : null}
+      <View style={[styles.content, { backgroundColor: colors.background }]}>{children}</View>
     </SafeAreaView>
   );
 }
@@ -130,6 +158,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   stackContainer: { paddingTop: spacing.md },
   header: {
+    overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
@@ -138,6 +167,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
   },
   titles: { flex: 1, gap: 2 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  titleText: { flexShrink: 1 },
   stackSubtitle: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
   content: { flex: 1 },
   scrollContent: { padding: spacing.lg },
