@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useRef, useState } from 'react';
@@ -20,7 +21,7 @@ import { Meter, StatRow, StatTile } from '@/features/stats/charts';
 import { addDays, formatDayShort, type DateKey } from '@/lib/dates';
 import { plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
-import { spacing } from '@/theme/theme';
+import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 import { MEDIA_KINDS, MEDIA_KIND_KEYS, bookProgress, formatRating, mediaYearStats, pickRandom, progressLabel, stars } from './media';
@@ -234,7 +235,7 @@ function MediaRow({ item, today, onPress, action }: { item: MediaItem; today: Da
   const detail = mediaDetail(item, today);
   return (
     <Card variant="row" onPress={onPress}>
-      <AppText style={styles.emoji}>{MEDIA_KINDS[item.kind].emoji}</AppText>
+      <MediaThumb item={item} size="small" />
       <View style={styles.flex}>
         <AppText numberOfLines={2} tone={item.status === 'dropped' ? 'textMuted' : 'text'}>
           {item.title}
@@ -261,7 +262,7 @@ function ActiveCard({ item, onPress, onEpisode, onPage, onFinish }: ActiveCardPr
   return (
     <Card onPress={onPress} style={styles.active}>
       <View style={styles.row}>
-        <AppText style={styles.emoji}>{info.emoji}</AppText>
+        <MediaThumb item={item} size="large" />
         <View style={styles.flex}>
           <AppText variant="bodyStrong" numberOfLines={2}>
             {item.title}
@@ -279,6 +280,22 @@ function ActiveCard({ item, onPress, onEpisode, onPage, onFinish }: ActiveCardPr
         <Chip label={info.finishLabel} icon="check" selected={false} onPress={onFinish} />
       </ChipRow>
     </Card>
+  );
+}
+
+/** Okładka tytułu, a bez niej (albo gdy pliku już nie ma, np. po przywróceniu kopii) — emoji rodzaju. */
+function MediaThumb({ item, size }: { item: MediaItem; size: 'small' | 'large' }) {
+  const { colors } = useTheme();
+  const [broken, setBroken] = useState(false);
+  if (!item.cover_uri || broken) return <AppText style={styles.emoji}>{MEDIA_KINDS[item.kind].emoji}</AppText>;
+  return (
+    <Image
+      source={{ uri: item.cover_uri }}
+      style={[size === 'large' ? styles.coverLarge : styles.coverSmall, { backgroundColor: colors.surfaceAlt }]}
+      contentFit="cover"
+      onError={() => setBroken(true)}
+      accessibilityIgnoresInvertColors
+    />
   );
 }
 
@@ -334,6 +351,8 @@ const styles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   emoji: { fontSize: 24, width: 32, textAlign: 'center' },
+  coverSmall: { width: 32, height: 48, borderRadius: radius.sm / 2 },
+  coverLarge: { width: 44, height: 66, borderRadius: radius.sm / 2 },
   stats: { gap: spacing.sm },
   active: { gap: spacing.md },
   sheetTitle: { gap: spacing.xs },

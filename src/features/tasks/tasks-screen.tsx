@@ -52,6 +52,8 @@ export function TasksScreen() {
       title="Zadania"
       headerRight={
         <HeaderActions>
+          <IconButton icon="calendar_view_week" accessibilityLabel="Planer tygodnia" onPress={() => router.push('/planer')} />
+          <IconButton icon="grid_view" accessibilityLabel="Macierz Eisenhowera" onPress={() => router.push('/macierz')} />
           <IconButton icon="folder" accessibilityLabel="Projekty" onPress={() => router.push('/projekty')} />
           <IconButton
             icon="add"

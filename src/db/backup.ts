@@ -10,7 +10,8 @@ import { plural } from '@/lib/format';
 
 /**
  * Tabele w kopii, w kolejności wstawiania (rodzice przed dziećmi). Ustawienia urządzenia nie trafiają do kopii
- * (poza BACKUP_SETTINGS), podobnie zdjęcia z notatek i podróży (to pliki, nie da się ich sensownie zapisać w JSON-ie).
+ * (poza BACKUP_SETTINGS), podobnie zdjęcia z notatek i podróży, okładki i zdjęcia marzeń (to pliki, nie da się ich sensownie
+ * zapisać w JSON-ie).
  */
 export const BACKUP_TABLES = [
   'exercises',
@@ -42,14 +43,17 @@ export const BACKUP_TABLES = [
   'skills',
   'practice_sessions',
   'home_chores',
+  'chore_logs',
+  'daily_reviews',
   'warranties',
   'meters',
   'meter_readings',
   'media_items',
+  'dreams',
 ] as const;
 
 /** Ustawienia, które są danymi (a nie preferencjami telefonu) — trafiają do kopii. */
-const BACKUP_SETTINGS: SettingKey[] = ['monthly_budget'];
+const BACKUP_SETTINGS: SettingKey[] = ['monthly_budget', 'budget_since'];
 
 type BackupTable = (typeof BACKUP_TABLES)[number];
 type Value = string | number | null;
@@ -165,6 +169,7 @@ function checkReferences({ data }: Backup) {
     ['medication_logs', 'medication_id', 'medications'],
     ['practice_sessions', 'skill_id', 'skills'],
     ['meter_readings', 'meter_id', 'meters'],
+    ['chore_logs', 'chore_id', 'home_chores'],
     ['trip_items', 'trip_id', 'trips'],
     ['transactions', 'trip_id', 'trips'],
   ];

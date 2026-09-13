@@ -1,4 +1,4 @@
-import type { TextStyle } from 'react-native';
+import { Platform, type TextStyle } from 'react-native';
 
 const light = {
   background: '#F7F7F8',
@@ -7,13 +7,13 @@ const light = {
   border: '#E4E4E9',
   text: '#1C2024',
   textSecondary: '#60646C',
-  textMuted: '#8B8D98',
+  textMuted: '#696C76',
   accent: '#5B5BD6',
   accentSoft: '#E6E7FB',
   onAccent: '#FFFFFF',
-  danger: '#E5484D',
-  warning: '#F76B15',
-  success: '#30A46C',
+  danger: '#C23A3F',
+  warning: '#B34A00',
+  success: '#1D7A4F',
   // Kolory modułów — m.in. kropki w kalendarzu. Paleta (activity, habits, tasks, journal) sprawdzona
   // walidatorem pod kątem daltonizmu w obu trybach; zmieniając je, sprawdź ją ponownie.
   activity: '#F76B15',
@@ -43,7 +43,7 @@ const darkClassic: ThemeColors = {
   border: '#2E2E32',
   text: '#EDEEF0',
   textSecondary: '#B0B4BA',
-  textMuted: '#7C7F87',
+  textMuted: '#8B8E97',
   accent: '#9EA0F5',
   accentSoft: '#2B2C5A',
   onAccent: '#111113',
@@ -74,13 +74,13 @@ const vaporLight: ThemeColors = {
   border: '#EBC8F2',
   text: '#2E1A47',
   textSecondary: '#6A4C8C',
-  textMuted: '#7B6098',
+  textMuted: '#735A91',
   accent: '#A3228F',
   accentSoft: '#FBD9F0',
   onAccent: '#FFFFFF',
   danger: '#C2285A',
-  warning: '#A85600',
-  success: '#0B7F60',
+  warning: '#9C5000',
+  success: '#097658',
   activity: '#E0600C',
   habits: '#0E9A74',
   tasks: '#5B5BE6',
@@ -181,9 +181,102 @@ const zenDark: ThemeColors = {
   decorLine: '#D6A84A',
 };
 
-export type ThemeStyle = 'classic' | 'vaporwave' | 'zen';
+/** Sakura, wersja dzienna: biel, płatki wiśni i wiśniowy akcent. Te same sprawdzenia. */
+const sakuraLight: ThemeColors = {
+  background: '#FFF4F6',
+  surface: '#FFFFFF',
+  surfaceAlt: '#FCE8EE',
+  border: '#F4CCD8',
+  text: '#2B1A20',
+  textSecondary: '#6B4B55',
+  textMuted: '#7A5A65',
+  accent: '#AD2F63',
+  accentSoft: '#FADCE7',
+  onAccent: '#FFFFFF',
+  danger: '#B3261E',
+  warning: '#8F5000',
+  success: '#2A7355',
+  activity: '#E0600C',
+  habits: '#0E9A74',
+  tasks: '#5B5BE6',
+  journal: '#C2358E',
+  notes: '#B7860B',
+  finance: '#008C7E',
+  chrome: '#FFE6EE',
+  cardBorder: '#F6D3DE',
+  decor: '#F4A6C0',
+  decorAlt: '#E07A9F',
+  decorLine: '#8B5A6B',
+};
 
-export const THEME_STYLES: Record<ThemeStyle, { label: string; description: string; modes?: string }> = {
+/** Sakura, wersja nocna: wiśniowa noc i różowe płatki. Te same sprawdzenia na ciemnych kartach. */
+const sakuraDark: ThemeColors = {
+  background: '#1C1216',
+  surface: '#26181E',
+  surfaceAlt: '#321F27',
+  border: '#48303A',
+  text: '#FBEFF3',
+  textSecondary: '#D9B8C4',
+  textMuted: '#B0909C',
+  accent: '#F48FB1',
+  accentSoft: '#4A2233',
+  onAccent: '#1C1216',
+  danger: '#FF7B7B',
+  warning: '#F6A55B',
+  success: '#6FD3A2',
+  activity: '#E0712A',
+  habits: '#12A57A',
+  tasks: '#6F7DF0',
+  journal: '#E0469F',
+  notes: '#B8892A',
+  finance: '#26A898',
+  chrome: '#22151A',
+  cardBorder: '#48303A',
+  decor: '#F4A6C0',
+  decorAlt: '#C76A8E',
+  decorLine: '#7A5563',
+};
+
+/** Terminal: zielony fosfor na czarnym ekranie (tylko ciemny). Te same sprawdzenia na kartach. */
+const terminal: ThemeColors = {
+  background: '#050A05',
+  surface: '#0B140B',
+  surfaceAlt: '#112011',
+  border: '#1C3A1C',
+  text: '#B8F5B0',
+  textSecondary: '#86D47F',
+  textMuted: '#66AE60',
+  accent: '#4AF27A',
+  accentSoft: '#0F2E17',
+  onAccent: '#050A05',
+  danger: '#FF6B5E',
+  warning: '#FFBD2E',
+  success: '#4AF27A',
+  activity: '#D95926',
+  habits: '#199E70',
+  tasks: '#3987E5',
+  journal: '#C957B8',
+  notes: '#B8892A',
+  finance: '#26A898',
+  chrome: '#030703',
+  cardBorder: '#1C3A1C',
+  decor: '#4AF27A',
+  decorAlt: '#2E8B45',
+  decorLine: '#1F5A2C',
+};
+
+export type ThemeStyle = 'classic' | 'vaporwave' | 'zen' | 'sakura' | 'terminal';
+
+type StyleInfo = {
+  label: string;
+  description: string;
+  /** Opis wersji jasnej i ciemnej (style z własną paletą zamiast koloru akcentu). */
+  modes?: string;
+  /** Styl ma tylko wersję ciemną (tryb jasny jest wtedy ignorowany). */
+  darkOnly?: boolean;
+};
+
+export const THEME_STYLES: Record<ThemeStyle, StyleInfo> = {
   classic: { label: 'Klasyczny', description: 'Spokojny, z wybranym kolorem akcentu' },
   vaporwave: {
     label: 'Vaporwave',
@@ -195,6 +288,17 @@ export const THEME_STYLES: Record<ThemeStyle, { label: string; description: stri
     description: 'Papier, tusz i czerwona pieczęć',
     modes: 'Zen w trybie jasnym to papier washi i czerwona pieczęć, w ciemnym — tusz i złoto.',
   },
+  sakura: {
+    label: 'Sakura',
+    description: 'Płatki wiśni i miękki krój',
+    modes: 'Sakura w trybie jasnym to biel i płatki wiśni, w ciemnym — wiśniowa noc.',
+  },
+  terminal: {
+    label: 'Terminal',
+    description: 'Zielony fosfor na czarnym ekranie',
+    modes: 'Terminal jest zawsze ciemny.',
+    darkOnly: true,
+  },
 };
 
 /** Krój tytułów i dużych liczb danego stylu z rozmiarami dobranymi do jego proporcji. */
@@ -204,6 +308,8 @@ export type DisplayFont = {
   heading: TextStyle;
   /** Rozmiar tytułu w pasku nawigacji ekranów stosu. */
   headerSize: number;
+  /** Krój także dla zwykłego tekstu (terminal), nie tylko tytułów. */
+  allText?: boolean;
 };
 
 export type Theme = {
@@ -219,6 +325,9 @@ export type Theme = {
 /** Czcionki stylów (ładowane w app/_layout.tsx; obie mają polskie znaki). */
 export const VAPOR_FONT = 'VT323_400Regular';
 export const ZEN_FONT = 'CormorantGaramond_600SemiBold';
+export const SAKURA_FONT = 'Quicksand_700Bold';
+/** Systemowy krój o stałej szerokości (na Androidzie z polskimi znakami) — bez pobierania. */
+const MONO_FONT = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
 /** Krój pikselowy jest drobniejszy od systemowego — większe rozmiary i bez sztucznego pogrubienia. */
 const VAPOR_DISPLAY: DisplayFont = {
@@ -236,6 +345,36 @@ const ZEN_DISPLAY: DisplayFont = {
   headerSize: 24,
 };
 
+/** Quicksand jest zaokrąglony i lekki — grubość z pliku (700). */
+const SAKURA_DISPLAY: DisplayFont = {
+  family: SAKURA_FONT,
+  title: { fontSize: 30, lineHeight: 38, fontWeight: 'normal' },
+  heading: { fontSize: 20, lineHeight: 26, fontWeight: 'normal' },
+  headerSize: 21,
+};
+
+/** Krój stałej szerokości jest szeroki — mniejsze tytuły; cały tekst w tym kroju. */
+const TERMINAL_DISPLAY: DisplayFont = {
+  family: MONO_FONT,
+  title: { fontSize: 26, lineHeight: 32, fontWeight: '700', letterSpacing: 0 },
+  heading: { fontSize: 18, lineHeight: 24, fontWeight: '700', letterSpacing: 0 },
+  headerSize: 18,
+  allText: true,
+};
+
+/** Style z własną paletą: kolory obu wersji, krój tytułów i ramka kart. */
+const STYLE_THEMES: Record<Exclude<ThemeStyle, 'classic'>, { light: ThemeColors; dark: ThemeColors; display: DisplayFont | null; cardBorderWidth: number }> = {
+  vaporwave: { light: vaporLight, dark: vaporDark, display: VAPOR_DISPLAY, cardBorderWidth: 1.5 },
+  zen: { light: zenLight, dark: zenDark, display: ZEN_DISPLAY, cardBorderWidth: 1 },
+  sakura: { light: sakuraLight, dark: sakuraDark, display: SAKURA_DISPLAY, cardBorderWidth: 1 },
+  terminal: { light: terminal, dark: terminal, display: TERMINAL_DISPLAY, cardBorderWidth: 1 },
+};
+
+/** Czysta czerń (AMOLED): tło i paski czarne, karty zostają lekko jaśniejsze. */
+function withAmoled(colors: ThemeColors): ThemeColors {
+  return { ...colors, background: '#000000', chrome: '#000000' };
+}
+
 /**
  * Kolory akcentu do wyboru w Ustawieniach (styl klasyczny): [akcent, tło akcentu] dla trybu jasnego i ciemnego.
  * Każdy akcent ma kontrast ≥ 4,5:1 jako tekst na tle aplikacji i pod napisem na przycisku.
@@ -251,22 +390,27 @@ export const ACCENTS = {
 
 export type AccentKey = keyof typeof ACCENTS;
 
-/** Pełny motyw: styl × tryb jasny/ciemny (× akcent w stylu klasycznym — pozostałe style mają własny). */
-export function buildTheme(style: ThemeStyle, dark: boolean, accent: AccentKey): Theme {
-  if (style === 'vaporwave') {
-    return { dark, style, colors: dark ? vaporDark : vaporLight, display: VAPOR_DISPLAY, cardBorderWidth: 1.5 };
+/**
+ * Pełny motyw: styl × tryb jasny/ciemny (× akcent w stylu klasycznym — pozostałe style mają własny)
+ * × czysta czerń (tylko w trybie ciemnym).
+ */
+export function buildTheme(style: ThemeStyle, dark: boolean, accent: AccentKey, amoled = false): Theme {
+  const isDark = dark || THEME_STYLES[style].darkOnly === true;
+  let theme: Theme;
+  if (style === 'classic') {
+    const [color, soft] = ACCENTS[accent][isDark ? 'dark' : 'light'];
+    theme = {
+      dark: isDark,
+      style,
+      colors: { ...(isDark ? darkClassic : light), accent: color, accentSoft: soft },
+      display: null,
+      cardBorderWidth: 0,
+    };
+  } else {
+    const entry = STYLE_THEMES[style];
+    theme = { dark: isDark, style, colors: isDark ? entry.dark : entry.light, display: entry.display, cardBorderWidth: entry.cardBorderWidth };
   }
-  if (style === 'zen') {
-    return { dark, style, colors: dark ? zenDark : zenLight, display: ZEN_DISPLAY, cardBorderWidth: 1 };
-  }
-  const [color, soft] = ACCENTS[accent][dark ? 'dark' : 'light'];
-  return {
-    dark,
-    style,
-    colors: { ...(dark ? darkClassic : light), accent: color, accentSoft: soft },
-    display: null,
-    cardBorderWidth: 0,
-  };
+  return isDark && amoled ? { ...theme, colors: withAmoled(theme.colors) } : theme;
 }
 
 /** '#RRGGBB' + przezroczystość 0–1 → '#RRGGBBAA'. */

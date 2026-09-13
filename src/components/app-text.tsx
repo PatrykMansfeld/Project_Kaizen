@@ -9,7 +9,7 @@ export type AppTextProps = TextProps & {
   tone?: keyof ThemeColors;
 };
 
-/** Warianty pisane krojem tytułowym stylu (VT323 w vaporwave, Garamond w zen) — z rozmiarami z motywu. */
+/** Warianty pisane krojem tytułowym stylu (VT323 w vaporwave, Garamond w zen, Quicksand w sakurze) — z rozmiarami z motywu. */
 const DISPLAY_VARIANTS = ['title', 'heading'] as const;
 
 export function AppText({ variant = 'body', tone = 'text', style, ...rest }: AppTextProps) {
@@ -20,6 +20,8 @@ export function AppText({ variant = 'body', tone = 'text', style, ...rest }: App
       style={[
         styles[variant],
         display && displayVariant && [display[displayVariant], { fontFamily: display.family }],
+        // Terminal: cały tekst krojem stałej szerokości, rozmiary zwykłe.
+        display?.allText && !displayVariant && { fontFamily: display.family },
         { color: colors[tone] },
         style,
       ]}

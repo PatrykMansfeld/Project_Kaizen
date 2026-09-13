@@ -34,8 +34,12 @@ export type ModuleKey =
   | 'pomiary'
   | 'cwiczenia'
   | 'projekty'
+  | 'macierz'
+  | 'planer'
+  | 'marzenia'
   | 'wnioski'
   | 'rok'
+  | 'postep'
   | 'osiagniecia'
   | 'szukaj'
   | 'ustawienia';
@@ -72,6 +76,24 @@ export const MODULES: Record<ModuleKey, ModuleInfo> = {
     description: 'Nastrój i wpis dnia',
     group: 'Na co dzień',
     href: (today) => ({ pathname: '/dziennik/[date]', params: { date: today } }),
+  },
+  planer: {
+    key: 'planer',
+    label: 'Planer tygodnia',
+    icon: 'calendar_view_week',
+    color: 'tasks',
+    description: 'Zadania rozłożone na dni',
+    group: 'Na co dzień',
+    href: () => '/planer',
+  },
+  macierz: {
+    key: 'macierz',
+    label: 'Macierz Eisenhowera',
+    icon: 'grid_view',
+    color: 'tasks',
+    description: 'Pilne i ważne w czterech polach',
+    group: 'Na co dzień',
+    href: () => '/macierz',
   },
   cele: { key: 'cele', label: 'Cele', icon: 'sports_score', color: 'accent', description: 'Cele długoterminowe', group: 'Na co dzień', href: () => '/cele' },
   podsumowanie: {
@@ -123,6 +145,15 @@ export const MODULES: Record<ModuleKey, ModuleInfo> = {
     group: 'Rozwój',
   },
   projekty: { key: 'projekty', label: 'Projekty', icon: 'folder', color: 'tasks', description: 'Zadania w grupach', group: 'Rozwój', href: () => '/projekty' },
+  marzenia: {
+    key: 'marzenia',
+    label: 'Lista marzeń',
+    icon: 'auto_awesome',
+    color: 'journal',
+    description: 'Rzeczy do zrobienia w życiu',
+    group: 'Rozwój',
+    href: () => '/marzenia',
+  },
   finanse: { key: 'finanse', label: 'Wydatki', icon: 'payments', color: 'finance', description: 'Budżet i kategorie', group: 'Finanse i dom' },
   oplaty: { key: 'oplaty', label: 'Stałe opłaty', tabLabel: 'Opłaty', icon: 'event_repeat', color: 'finance', description: 'Rachunki i subskrypcje', group: 'Finanse i dom' },
   dom: { key: 'dom', label: 'Dom', icon: 'home', color: 'notes', description: 'Obowiązki, gwarancje, liczniki', group: 'Finanse i dom' },
@@ -138,6 +169,15 @@ export const MODULES: Record<ModuleKey, ModuleInfo> = {
   statystyki: { key: 'statystyki', label: 'Statystyki', icon: 'insights', color: 'accent', description: 'Tydzień i miesiąc w liczbach', group: 'Przegląd' },
   wnioski: { key: 'wnioski', label: 'Wnioski', icon: 'lightbulb', color: 'accent', description: 'Co ci pomaga', group: 'Przegląd', href: () => '/wnioski' },
   rok: { key: 'rok', label: 'Rok w pikselach', icon: 'calendar_view_month', color: 'accent', description: 'Cały rok na siatce', group: 'Przegląd', href: () => '/rok' },
+  postep: {
+    key: 'postep',
+    label: 'Postęp',
+    icon: 'military_tech',
+    color: 'accent',
+    description: 'Poziom, punkty i cechy',
+    group: 'Przegląd',
+    href: () => '/postep',
+  },
   osiagniecia: {
     key: 'osiagniecia',
     label: 'Osiągnięcia',

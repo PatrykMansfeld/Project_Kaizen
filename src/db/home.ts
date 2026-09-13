@@ -102,14 +102,17 @@ export function updateChore(db: SQLiteDatabase, id: number, input: ChoreInput) {
   );
 }
 
-/** „Zrobione”: kolejny termin liczy się od dnia wykonania. */
+/** „Zrobione”: kolejny termin liczy się od dnia wykonania; wykonanie trafia do historii (punkty w Postępie). */
 export function markChoreDone(db: SQLiteDatabase, chore: Pick<Chore, 'id' | 'interval_days'>, today: DateKey) {
-  return db.runAsync(
-    'UPDATE home_chores SET last_done = ?, next_due = ? WHERE id = ?',
-    today,
-    addDays(today, chore.interval_days),
-    chore.id,
-  );
+  return db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'UPDATE home_chores SET last_done = ?, next_due = ? WHERE id = ?',
+      today,
+      addDays(today, chore.interval_days),
+      chore.id,
+    );
+    await db.runAsync('INSERT INTO chore_logs (chore_id, date) VALUES (?, ?)', chore.id, today);
+  });
 }
 
 export function deleteChore(db: SQLiteDatabase, id: number) {

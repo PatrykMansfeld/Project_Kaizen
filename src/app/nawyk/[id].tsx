@@ -18,6 +18,8 @@ import { UNIT_SUGGESTIONS } from '@/features/habits/amount';
 import { HabitIcon } from '@/features/habits/habit-card';
 import { HABIT_ICONS } from '@/features/habits/icons';
 import { EVERY_DAY, WORKDAYS } from '@/features/habits/streak';
+import { useModuleVisible } from '@/features/modules/preferences';
+import { ATTRIBUTES, ATTRIBUTE_KEYS, guessAttribute } from '@/features/progress/xp';
 import { requestPermissionOrWarn } from '@/features/reminders/permission';
 import { EXPO_GO_NOTICE, notificationsSupported } from '@/features/reminders/reminders';
 import { confirmDelete } from '@/lib/alerts';
@@ -47,7 +49,11 @@ export default function HabitEditScreen() {
     reminder_time: null,
     days_mask: EVERY_DAY,
     weekly_target: null,
+    attribute: guessAttribute(HABIT_ICONS[0]),
   });
+  // Nowy nawyk dostaje cechę po ikonie, dopóki nie wybierzesz jej sam.
+  const [attributeChosen, setAttributeChosen] = useState(!isNew);
+  const progressVisible = useModuleVisible('postep');
   // Cel nawyku ilościowego jako tekst z pola (np. „10000”).
   const [amountText, setAmountText] = useState('');
   const [archived, setArchived] = useState(false);
@@ -70,6 +76,7 @@ export default function HabitEditScreen() {
         reminder_time: habit.reminder_time,
         days_mask: habit.days_mask,
         weekly_target: habit.weekly_target,
+        attribute: habit.attribute,
       });
       if (habit.unit) setAmountText(String(habit.target_per_day));
       setArchived(habit.archived === 1);
@@ -290,8 +297,34 @@ export default function HabitEditScreen() {
             </Section>
 
             <Section title="Ikona">
-              <EmojiPicker options={HABIT_ICONS} value={form.icon} onChange={(icon) => update({ icon })} color={color} />
+              <EmojiPicker
+                options={HABIT_ICONS}
+                value={form.icon}
+                onChange={(icon) => update(attributeChosen ? { icon } : { icon, attribute: guessAttribute(icon) })}
+                color={color}
+              />
             </Section>
+
+            {progressVisible ? (
+              <Section title="Cecha">
+                <ChipRow>
+                  {ATTRIBUTE_KEYS.map((key) => (
+                    <Chip
+                      key={key}
+                      label={ATTRIBUTES[key].label}
+                      selected={form.attribute === key}
+                      onPress={() => {
+                        setAttributeChosen(true);
+                        update({ attribute: key });
+                      }}
+                    />
+                  ))}
+                </ChipRow>
+                <AppText variant="caption" tone="textMuted">
+                  Każde odhaczenie daje 10 XP tej cesze w Postępie.
+                </AppText>
+              </Section>
+            ) : null}
 
             {!isNew ? (
               <View style={styles.dangerZone}>

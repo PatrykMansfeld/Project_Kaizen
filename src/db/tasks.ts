@@ -121,6 +121,30 @@ export function updateTask(db: SQLiteDatabase, id: number, input: TaskInput) {
   );
 }
 
+export function setTaskPriority(db: SQLiteDatabase, id: number, priority: Priority) {
+  return db.runAsync('UPDATE tasks SET priority = ? WHERE id = ?', priority, id);
+}
+
+/**
+ * Nowy termin (planer, macierz). Bez terminu znika też godzina i powtarzanie; `time` pominięte — godzina
+ * zostaje, null — bez godziny.
+ */
+export function setTaskDue(db: SQLiteDatabase, id: number, due: DateKey | null, time?: string | null) {
+  if (due === null) return db.runAsync('UPDATE tasks SET due_date = NULL, due_time = NULL, repeat = NULL WHERE id = ?', id);
+  if (time === undefined) return db.runAsync('UPDATE tasks SET due_date = ? WHERE id = ?', due, id);
+  return db.runAsync('UPDATE tasks SET due_date = ?, due_time = ? WHERE id = ?', due, time, id);
+}
+
+/** Zadania z terminem w przedziale (otwarte i zrobione) — planer tygodnia. */
+export const TASKS_BETWEEN_SQL = `SELECT ${TASK_COLUMNS} FROM tasks WHERE due_date BETWEEN $from AND $to
+  ORDER BY due_date, due_time IS NULL, due_time, completed_at IS NOT NULL, priority DESC, id`;
+
+/** Otwarte bez terminu (od najnowszych) i otwarte zaległe sprzed `$from`. */
+export const TASKS_UNDATED_SQL = `SELECT ${TASK_COLUMNS} FROM tasks WHERE completed_at IS NULL AND due_date IS NULL
+  ORDER BY priority DESC, id DESC`;
+export const TASKS_OVERDUE_BEFORE_SQL = `SELECT ${TASK_COLUMNS} FROM tasks WHERE completed_at IS NULL AND due_date < $from
+  ORDER BY due_date, priority DESC, id`;
+
 function setTaskDone(db: SQLiteDatabase, id: number, done: boolean) {
   return db.runAsync(
     `UPDATE tasks SET completed_at = ${done ? NOW_SQL : 'NULL'} WHERE id = ?`,

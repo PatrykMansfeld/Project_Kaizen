@@ -4,6 +4,7 @@ import { ScrollView, StyleSheet, View, type StyleProp, type ViewStyle } from 're
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppText } from '@/components/app-text';
+import { SakuraBlossom, SakuraBranch, TerminalCursor, TerminalPrompt, TerminalRule } from '@/components/style-decor';
 import { VaporGrid, VaporSun } from '@/components/vapor-decor';
 import { ZenBrush, ZenSeal } from '@/components/zen-decor';
 import { spacing, type ThemeStyle } from '@/theme/theme';
@@ -18,6 +19,8 @@ type ScreenMode = 'tab' | 'stack';
 type HeaderDecor = {
   /** Za tytułem (pod przyciskami, bez interakcji). */
   behind?: () => ReactNode;
+  /** Tuż przed tekstem tytułu. */
+  beforeTitle?: () => ReactNode;
   /** Tuż za tekstem tytułu. */
   afterTitle?: () => ReactNode;
   /** Pas pod nagłówkiem. */
@@ -28,6 +31,8 @@ type HeaderDecor = {
 const HEADER_DECOR: Partial<Record<ThemeStyle, HeaderDecor>> = {
   vaporwave: { behind: VaporSun, below: VaporGrid },
   zen: { afterTitle: ZenSeal, below: ZenBrush },
+  sakura: { afterTitle: SakuraBlossom, below: SakuraBranch },
+  terminal: { beforeTitle: TerminalPrompt, afterTitle: TerminalCursor, below: TerminalRule },
 };
 
 const ScreenModeContext = createContext<ScreenMode>('stack');
@@ -74,13 +79,15 @@ export function Screen({ title, subtitle, headerRight, children }: Props) {
     );
   }
 
-  // Vaporwave: za tytułem zachodzące słońce, pod spodem siatka; zen: pieczątka przy tytule i pociągnięcie pędzla.
+  // Vaporwave: za tytułem zachodzące słońce, pod spodem siatka; zen: pieczątka przy tytule i pociągnięcie pędzla;
+  // sakura: kwiat i gałązka; terminal: „>” i migający kursor.
   return (
     <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: headerColor }]}>
       <View style={[styles.header, { backgroundColor: headerColor }]}>
         {decor?.behind ? <decor.behind /> : null}
         <View style={styles.titles}>
           <View style={styles.titleRow}>
+            {decor?.beforeTitle ? <decor.beforeTitle /> : null}
             <AppText variant="title" style={styles.titleText}>
               {title}
             </AppText>

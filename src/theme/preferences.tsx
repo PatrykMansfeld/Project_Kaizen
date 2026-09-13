@@ -12,24 +12,29 @@ import { ACCENTS, THEME_STYLES, type AccentKey, type ThemeStyle } from './theme'
 
 export type ThemeMode = 'system' | 'light' | 'dark';
 
-const KEYS = { mode: 'kaizen.theme_mode', accent: 'kaizen.theme_accent', style: 'kaizen.theme_style' };
+const KEYS = { mode: 'kaizen.theme_mode', accent: 'kaizen.theme_accent', style: 'kaizen.theme_style', amoled: 'kaizen.theme_amoled' };
 
 type Preferences = {
   mode: ThemeMode;
   accent: AccentKey;
   style: ThemeStyle;
+  /** Czysta czerń w trybie ciemnym (ekrany AMOLED). */
+  amoled: boolean;
   setMode: (mode: ThemeMode) => void;
   setAccent: (accent: AccentKey) => void;
   setStyle: (style: ThemeStyle) => void;
+  setAmoled: (amoled: boolean) => void;
 };
 
 const defaults: Preferences = {
   mode: 'system',
   accent: 'indigo',
   style: 'classic',
+  amoled: false,
   setMode: () => {},
   setAccent: () => {},
   setStyle: () => {},
+  setAmoled: () => {},
 };
 const PreferencesContext = createContext<Preferences>(defaults);
 
@@ -42,9 +47,13 @@ function readSetting<T extends string>(key: string, allowed: readonly T[], fallb
   }
 }
 
-/** Tryb jasny/ciemny ustawiamy dla całej aplikacji — wtedy także systemowe okna (np. Alert) go respektują. */
-function applyMode(mode: ThemeMode) {
-  Appearance.setColorScheme(mode === 'system' ? 'unspecified' : mode);
+/**
+ * Tryb jasny/ciemny ustawiamy dla całej aplikacji — wtedy także systemowe okna (np. Alert) go respektują.
+ * Styl tylko ciemny (terminal) wymusza ciemny niezależnie od wyboru.
+ */
+function applyMode(mode: ThemeMode, style: ThemeStyle) {
+  if (THEME_STYLES[style].darkOnly) Appearance.setColorScheme('dark');
+  else Appearance.setColorScheme(mode === 'system' ? 'unspecified' : mode);
 }
 
 export function ThemePreferencesProvider({ children }: { children: ReactNode }) {
@@ -56,9 +65,11 @@ export function ThemePreferencesProvider({ children }: { children: ReactNode }) 
     readSetting(KEYS.style, Object.keys(THEME_STYLES) as ThemeStyle[], 'classic'),
   );
 
+  const [amoled, setAmoledState] = useState(() => readSetting(KEYS.amoled, ['1', '0'], '0') === '1');
+
   useEffect(() => {
-    applyMode(mode);
-  }, [mode]);
+    applyMode(mode, style);
+  }, [mode, style]);
 
   const setMode = (next: ThemeMode) => {
     Storage.setItemSync(KEYS.mode, next);
@@ -72,9 +83,13 @@ export function ThemePreferencesProvider({ children }: { children: ReactNode }) 
     Storage.setItemSync(KEYS.style, next);
     setStyleState(next);
   };
+  const setAmoled = (next: boolean) => {
+    Storage.setItemSync(KEYS.amoled, next ? '1' : '0');
+    setAmoledState(next);
+  };
 
   return (
-    <PreferencesContext.Provider value={{ mode, accent, style, setMode, setAccent, setStyle }}>
+    <PreferencesContext.Provider value={{ mode, accent, style, amoled, setMode, setAccent, setStyle, setAmoled }}>
       {children}
     </PreferencesContext.Provider>
   );

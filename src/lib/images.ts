@@ -3,12 +3,12 @@ import { Directory, File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 
 /**
- * Zdjęcia (w notatkach, z podróży) kopiujemy do katalogu aplikacji — dzięki temu nie znikną po usunięciu
+ * Zdjęcia (w notatkach, z podróży, okładki, spełnione marzenia) kopiujemy do katalogu aplikacji — dzięki temu nie znikną po usunięciu
  * z galerii. W bazie zapisujemy tylko ścieżkę. Pliki nie trafiają do kopii zapasowej JSON.
  */
 
 /** Katalogi zdjęć poszczególnych modułów. */
-export type ImageFolder = 'note-images' | 'trip-photos';
+export type ImageFolder = 'note-images' | 'trip-photos' | 'media-covers' | 'dream-photos';
 
 function imagesDirectory(folder: ImageFolder) {
   const directory = new Directory(Paths.document, folder);

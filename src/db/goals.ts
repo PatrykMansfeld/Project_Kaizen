@@ -24,10 +24,12 @@ export type Goal = {
   progress: number;
   start_date: DateKey;
   end_date: DateKey;
+  /** Dzień osiągnięcia celu (do Postępu) — raz zapisany zostaje. */
+  achieved_on: DateKey | null;
   created_at: string;
 };
 
-export type GoalInput = Omit<Goal, 'id' | 'created_at' | 'progress'>;
+export type GoalInput = Omit<Goal, 'id' | 'created_at' | 'progress' | 'achieved_on'>;
 
 /** Najpierw trwające (najbliższy termin na górze), potem zakończone. */
 export const GOALS_SQL = 'SELECT * FROM goals ORDER BY end_date < $today, end_date, id';
@@ -100,14 +102,31 @@ export function createGoal(db: SQLiteDatabase, input: GoalInput) {
   );
 }
 
+/** Po zmianie celu jego osiągnięcie liczy się od nowa (syncGoalAchievements). */
 export function updateGoal(db: SQLiteDatabase, id: number, input: GoalInput) {
   return db.runAsync(
     `UPDATE goals SET title = $title, kind = $kind, workout_type = $workoutType, habit_id = $habit,
        measurement_type = $measurement, start_value = $start, target = $target, unit = $unit,
-       start_date = $from, end_date = $to
+       start_date = $from, end_date = $to, achieved_on = NULL
      WHERE id = $id`,
     { ...toParams(input), $id: id },
   );
+}
+
+/**
+ * Zapisuje dzień osiągnięcia celów, które doszły do 100% (punkty w Postępie). Cel zakończony w przeszłości
+ * dostaje datę końca, a nie dzisiejszą.
+ */
+export async function syncGoalAchievements(db: SQLiteDatabase, today: DateKey) {
+  const goals = await db.getAllAsync<Goal>('SELECT * FROM goals WHERE achieved_on IS NULL AND start_date <= ?', today);
+  for (const goal of goals) {
+    const query = goalProgressQuery(goal);
+    const row = await db.getFirstAsync<{ value: number | null }>(query.sql, query.params);
+    const value = row?.value ?? (goal.kind === 'measurement' ? null : 0);
+    if (goalFraction(goal, value) >= 1) {
+      await db.runAsync('UPDATE goals SET achieved_on = ? WHERE id = ?', goal.end_date < today ? goal.end_date : today, goal.id);
+    }
+  }
 }
 
 export function setGoalProgress(db: SQLiteDatabase, id: number, progress: number) {

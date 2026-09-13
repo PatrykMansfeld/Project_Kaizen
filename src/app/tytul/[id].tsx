@@ -8,6 +8,7 @@ import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
 import { DateChoice } from '@/components/date-choice';
 import { HeaderTextButton } from '@/components/header';
+import { PhotoField, usePhotoDraft } from '@/components/photo-field';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
 import { StarRating } from '@/components/star-rating';
@@ -70,6 +71,7 @@ export default function MediaEditScreen() {
     note: '',
   });
   const [loaded, setLoaded] = useState(isNew);
+  const cover = usePhotoDraft('media-covers');
 
   useEffect(() => {
     if (isNew) return;
@@ -93,6 +95,7 @@ export default function MediaEditScreen() {
         finishedOn: item.finished_on,
         note: item.note,
       });
+      cover.load(item.cover_uri);
       setLoaded(true);
     });
   }, [db, isNew, itemId]);
@@ -124,17 +127,20 @@ export default function MediaEditScreen() {
         started_on: form.startedOn,
         finished_on: form.finishedOn,
         note: form.note,
+        cover_uri: cover.uri,
       },
       today,
     );
     if (isNew) await createMediaItem(db, input);
     else await updateMediaItem(db, itemId, input);
+    cover.commit(cover.uri);
     router.back();
   };
 
   const remove = () =>
     confirmDelete('Usunąć tytuł?', undefined, async () => {
       await deleteMediaItem(db, itemId);
+      cover.discardAll();
       router.back();
     });
 
@@ -172,6 +178,10 @@ export default function MediaEditScreen() {
               maxLength={80}
             />
           ) : null}
+
+          <Section title="Okładka">
+            <PhotoField uri={cover.uri} onPick={cover.pick} onRemove={cover.remove} shape="cover" emptyLabel="Dodaj okładkę z galerii" />
+          </Section>
 
           <Section title="Status">
             <ChipRow>

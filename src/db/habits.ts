@@ -3,6 +3,9 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 import { groupBy } from '@/lib/collections';
 import type { DateKey } from '@/lib/dates';
 
+/** Cecha, którą rozwija nawyk (Postęp): ciało, umysł, porządek, duch. */
+export type Attribute = 'body' | 'mind' | 'order' | 'spirit';
+
 export type Habit = {
   id: number;
   name: string;
@@ -20,6 +23,7 @@ export type Habit = {
   days_mask: number;
   /** 1–7 = „tyle razy w tygodniu, w dowolne dni” (wtedy days_mask = codziennie); null = konkretne dni. */
   weekly_target: number | null;
+  attribute: Attribute;
   sort_order: number;
   archived: 0 | 1;
   created_at: string;
@@ -27,7 +31,7 @@ export type Habit = {
 
 export type HabitInput = Pick<
   Habit,
-  'name' | 'icon' | 'color' | 'target_per_day' | 'unit' | 'reminder_time' | 'days_mask' | 'weekly_target'
+  'name' | 'icon' | 'color' | 'target_per_day' | 'unit' | 'reminder_time' | 'days_mask' | 'weekly_target' | 'attribute'
 >;
 
 export type HabitLog = { habit_id: number; date: DateKey; count: number };
@@ -86,13 +90,14 @@ function toParams(input: HabitInput) {
     // Cel tygodniowy oznacza dowolne dni — harmonogram dni tygodnia wtedy nie obowiązuje.
     $days: input.weekly_target ? 127 : input.days_mask,
     $weekly: input.weekly_target ?? null,
+    $attribute: input.attribute,
   };
 }
 
 export function createHabit(db: SQLiteDatabase, input: HabitInput) {
   return db.runAsync(
-    `INSERT INTO habits (name, icon, color, target_per_day, unit, reminder_time, days_mask, weekly_target, sort_order)
-     VALUES ($name, $icon, $color, $target, $unit, $reminder, $days, $weekly,
+    `INSERT INTO habits (name, icon, color, target_per_day, unit, reminder_time, days_mask, weekly_target, attribute, sort_order)
+     VALUES ($name, $icon, $color, $target, $unit, $reminder, $days, $weekly, $attribute,
        (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM habits))`,
     toParams(input),
   );
@@ -101,10 +106,14 @@ export function createHabit(db: SQLiteDatabase, input: HabitInput) {
 export function updateHabit(db: SQLiteDatabase, id: number, input: HabitInput) {
   return db.runAsync(
     `UPDATE habits SET name = $name, icon = $icon, color = $color, target_per_day = $target, unit = $unit,
-       reminder_time = $reminder, days_mask = $days, weekly_target = $weekly
+       reminder_time = $reminder, days_mask = $days, weekly_target = $weekly, attribute = $attribute
      WHERE id = $id`,
     { ...toParams(input), $id: id },
   );
+}
+
+export function setHabitAttribute(db: SQLiteDatabase, id: number, attribute: Attribute) {
+  return db.runAsync('UPDATE habits SET attribute = ? WHERE id = ?', attribute, id);
 }
 
 /** Archiwum: nawyk znika z list i przypomnień, ale historia zostaje. Przywrócony trafia na koniec listy. */

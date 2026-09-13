@@ -13,7 +13,11 @@ export type SettingKey =
   /** JSON z id osiągnięć, które użytkownik już widział. */
   | 'achievements_seen'
   /** Miesięczny budżet na wszystkie wydatki, w groszach (brak = bez budżetu). Trafia do kopii zapasowej. */
-  | 'monthly_budget';
+  | 'monthly_budget'
+  /** Miesiąc ('YYYY-MM'), od którego obowiązuje budżet — do punktów za miesiąc w budżecie. Trafia do kopii. */
+  | 'budget_since'
+  /** Najwyższy osiągnięty poziom (Postęp) — gratulacje pokazujemy tylko przy nowym rekordzie. */
+  | 'xp_max_level';
 
 export const SETTING_SQL = 'SELECT value FROM settings WHERE key = $key';
 

@@ -4,7 +4,7 @@ import { AppText } from '@/components/app-text';
 import { Chip, ChipRow } from '@/components/chip';
 import { ColorSwatches } from '@/components/color-swatches';
 import { useThemePreferences, type ThemeMode } from '@/theme/preferences';
-import { ACCENTS, THEME_STYLES, buildTheme, radius, spacing, type AccentKey, type ThemeStyle } from '@/theme/theme';
+import { ACCENTS, THEME_STYLES, buildTheme, radius, spacing, type AccentKey, type ThemeColors, type ThemeStyle } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 const MODES: { mode: ThemeMode; label: string }[] = [
@@ -16,10 +16,10 @@ const MODES: { mode: ThemeMode; label: string }[] = [
 const ACCENT_KEYS = Object.keys(ACCENTS) as AccentKey[];
 const STYLE_KEYS = Object.keys(THEME_STYLES) as ThemeStyle[];
 
-/** Sekcja „Wygląd” w Ustawieniach: styl, tryb jasny/ciemny i (w stylu klasycznym) kolor akcentu. */
+/** Sekcja „Wygląd” w Ustawieniach: styl, tryb jasny/ciemny, czysta czerń i (w stylu klasycznym) kolor akcentu. */
 export function AppearanceSettings() {
   const { dark, colors } = useTheme();
-  const { mode, accent, style, setMode, setAccent, setStyle } = useThemePreferences();
+  const { mode, accent, style, amoled, setMode, setAccent, setStyle, setAmoled } = useThemePreferences();
 
   return (
     <View style={styles.container}>
@@ -40,6 +40,14 @@ export function AppearanceSettings() {
           <Chip key={option.mode} label={option.label} selected={mode === option.mode} onPress={() => setMode(option.mode)} />
         ))}
       </ChipRow>
+      <ChipRow>
+        <Chip label="Czysta czerń (AMOLED)" icon="contrast" selected={amoled} onPress={() => setAmoled(!amoled)} />
+      </ChipRow>
+      <AppText variant="caption" tone="textMuted">
+        {amoled
+          ? 'W trybie ciemnym tło i paski są czarne — na ekranach OLED to mniej zużytej baterii.'
+          : 'Czarne tło w trybie ciemnym zamiast grafitowego — dobre dla ekranów OLED.'}
+      </AppText>
       {THEME_STYLES[style].modes ? (
         <AppText variant="caption" tone="textMuted">
           {THEME_STYLES[style].modes}
@@ -68,7 +76,8 @@ type StyleOptionProps = { styleKey: ThemeStyle; accent: AccentKey; selected: boo
 function StyleOption({ styleKey, accent, selected, onPress }: StyleOptionProps) {
   const { colors } = useTheme();
   const info = THEME_STYLES[styleKey];
-  const previews = [buildTheme(styleKey, false, accent), buildTheme(styleKey, true, accent)];
+  // Styl tylko ciemny ma jeden podgląd na całą szerokość.
+  const previews = info.darkOnly ? [buildTheme(styleKey, true, accent)] : [buildTheme(styleKey, false, accent), buildTheme(styleKey, true, accent)];
 
   return (
     <Pressable
@@ -81,8 +90,7 @@ function StyleOption({ styleKey, accent, selected, onPress }: StyleOptionProps) 
         {previews.map((preview) => (
           <View key={String(preview.dark)} style={[styles.preview, { backgroundColor: preview.colors.background }]}>
             <View style={[styles.previewBar, { backgroundColor: styleKey === 'vaporwave' ? preview.colors.chrome : preview.colors.background }]}>
-              {styleKey === 'vaporwave' ? <View style={[styles.previewSun, { backgroundColor: preview.colors.decorAlt }]} /> : null}
-              {styleKey === 'zen' ? <View style={[styles.previewSeal, { backgroundColor: preview.colors.decorAlt }]} /> : null}
+              <PreviewMark styleKey={styleKey} colors={preview.colors} />
             </View>
             <View
               style={[
@@ -107,6 +115,22 @@ function StyleOption({ styleKey, accent, selected, onPress }: StyleOptionProps) 
   );
 }
 
+/** Znak rozpoznawczy stylu w miniaturze paska: słońce, pieczątka, płatek, kursor. */
+function PreviewMark({ styleKey, colors }: { styleKey: ThemeStyle; colors: ThemeColors }) {
+  switch (styleKey) {
+    case 'vaporwave':
+      return <View style={[styles.previewSun, { backgroundColor: colors.decorAlt }]} />;
+    case 'zen':
+      return <View style={[styles.previewSeal, { backgroundColor: colors.decorAlt }]} />;
+    case 'sakura':
+      return <View style={[styles.previewPetal, { backgroundColor: colors.decor }]} />;
+    case 'terminal':
+      return <View style={[styles.previewCursor, { backgroundColor: colors.accent }]} />;
+    default:
+      return null;
+  }
+}
+
 /** Nazwa stylu jego własnym krojem (np. „Zen” Garamondem). */
 function styleNameFont(family: string | undefined) {
   return family ? { fontFamily: family, fontWeight: 'normal' as const, fontSize: 20, lineHeight: 24 } : undefined;
@@ -122,6 +146,8 @@ const styles = StyleSheet.create({
   previewBar: { height: 18, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'flex-end', paddingRight: 6, overflow: 'hidden' },
   previewSun: { width: 16, height: 8, borderTopLeftRadius: 8, borderTopRightRadius: 8 },
   previewSeal: { width: 5, height: 7, borderRadius: 1, marginLeft: 1, marginBottom: 2 },
+  previewPetal: { width: 8, height: 8, borderRadius: 4, borderTopLeftRadius: 0, marginBottom: 3 },
+  previewCursor: { width: 5, height: 9, marginBottom: 3 },
   previewCard: { margin: 6, padding: 5, gap: 4, borderRadius: 5, borderWidth: 1 },
   previewLine: { height: 4, borderRadius: 2 },
   previewShort: { width: '60%' },

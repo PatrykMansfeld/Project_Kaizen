@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@expo-google-fonts/cormorant-garamond": "^0.4.1",
+    "@expo-google-fonts/quicksand": "^0.4.1",
     "@expo-google-fonts/vt323": "^0.4.1",
     "@expo/ui": "~57.0.17",
     "expo": "~57.0.21",

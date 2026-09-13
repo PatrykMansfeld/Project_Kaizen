@@ -70,6 +70,7 @@ export default function ReviewScreen() {
       await setSetting(db, 'review_count', String(count + 1));
     }
     await setSetting(db, 'last_review_date', date);
+    await db.runAsync('INSERT OR IGNORE INTO daily_reviews (date) VALUES (?)', date);
     const mood = moodOf(journalRows[0]?.mood ?? null);
     const summary = [
       habits.length ? `Nawyki: ${habitsDone} z ${habits.length}` : null,

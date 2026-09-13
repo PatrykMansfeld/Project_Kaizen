@@ -494,6 +494,54 @@ const MIGRATIONS: string[] = [
   ALTER TABLE media_items_new RENAME TO media_items;
   CREATE INDEX media_items_status ON media_items (status, finished_on);
   `,
+  `
+  -- Postęp (XP): cecha, którą rozwija nawyk (ciało, umysł, porządek, duch).
+  ALTER TABLE habits ADD COLUMN attribute TEXT NOT NULL DEFAULT 'spirit' CHECK (attribute IN ('body', 'mind', 'order', 'spirit'));
+  -- Wstępny przydział po ikonie (jak guessAttribute w features/progress/xp.ts); użytkownik może go zmienić.
+  UPDATE habits SET attribute = CASE
+    WHEN icon IN ('💧', '🏃', '🚶', '🚴', '🏊', '💪', '😴', '🛏️', '🦷', '🚿', '💊', '🍎', '🥗', '🥛', '🚭', '👟', '🥤', '🧴') THEN 'body'
+    WHEN icon IN ('📚', '🧠', '💻', '🎸', '🎨', '📖', '✍️', '🎯') THEN 'mind'
+    WHEN icon IN ('🧹', '💰', '🐶') THEN 'order'
+    ELSE 'spirit'
+  END;
+  -- Historia obowiązków domowych (wcześniej tylko data ostatniego razu) — z niej liczą się punkty.
+  CREATE TABLE chore_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    chore_id INTEGER NOT NULL REFERENCES home_chores (id) ON DELETE CASCADE,
+    date TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX chore_logs_chore ON chore_logs (chore_id, date);
+  INSERT INTO chore_logs (chore_id, date) SELECT id, last_done FROM home_chores WHERE last_done IS NOT NULL;
+  -- Dni zamknięte podsumowaniem (wcześniej tylko licznik i ostatni dzień).
+  CREATE TABLE daily_reviews (
+    date TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  INSERT INTO daily_reviews (date) SELECT value FROM settings WHERE key = 'last_review_date';
+  -- Dzień, w którym cel został osiągnięty (raz osiągnięty zostaje, jak odznaka).
+  ALTER TABLE goals ADD COLUMN achieved_on TEXT;
+  -- Od którego miesiąca obowiązuje budżet (liczymy tylko miesiące z budżetem, nie wstecz).
+  INSERT INTO settings (key, value) SELECT 'budget_since', strftime('%Y-%m', 'now', 'localtime') FROM settings WHERE key = 'monthly_budget';
+  `,
+  `
+  -- Okładka tytułu w Kulturze: plik w katalogu aplikacji (jak zdjęcia notatek), w bazie ścieżka.
+  ALTER TABLE media_items ADD COLUMN cover_uri TEXT;
+  -- Lista marzeń: rzeczy do zrobienia w życiu; spełnione mają dzień i (opcjonalnie) zdjęcie.
+  CREATE TABLE dreams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    icon TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'other'
+      CHECK (category IN ('travel', 'adventure', 'skill', 'create', 'people', 'things', 'other')),
+    target_year INTEGER CHECK (target_year BETWEEN 2000 AND 2200),
+    note TEXT NOT NULL DEFAULT '',
+    done_on TEXT,
+    photo_uri TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  );
+  CREATE INDEX dreams_done ON dreams (done_on);
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

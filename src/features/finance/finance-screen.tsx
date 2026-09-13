@@ -22,7 +22,7 @@ import {
   type Transaction,
   type TransactionType,
 } from '@/db/finance';
-import { deleteSetting, setSetting } from '@/db/settings';
+import { deleteSetting, getSetting, setSetting } from '@/db/settings';
 import { useQuery, useSetting } from '@/db/use-query';
 import {
   dailyAllowance,
@@ -91,6 +91,13 @@ export function FinanceScreen() {
       return;
     }
     await setSetting(db, 'monthly_budget', String(value));
+    // Punkty za miesiąc w budżecie liczą się od miesiąca, w którym budżet ustawiono.
+    if (!(await getSetting(db, 'budget_since'))) await setSetting(db, 'budget_since', today.slice(0, 7));
+  };
+
+  const removeBudget = async () => {
+    await deleteSetting(db, 'monthly_budget');
+    await deleteSetting(db, 'budget_since');
   };
 
   return (
@@ -135,7 +142,7 @@ export function FinanceScreen() {
         spent={summary.expenses}
         allowance={budget && isCurrent ? dailyAllowance(budget, summary.expenses, today, range.to) : null}
         onEdit={() => setBudgetOpen(true)}
-        onRemove={() => deleteSetting(db, 'monthly_budget')}
+        onRemove={removeBudget}
       />
 
       {summary.byCategory.length > 0 ? (

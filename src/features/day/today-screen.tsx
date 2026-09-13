@@ -17,6 +17,7 @@ import { DayAgenda } from '@/features/day/day-agenda';
 import { TodayShortcuts } from '@/features/day/today-shortcuts';
 import { GoalCard } from '@/features/goals/goal-card';
 import { useOpenModule } from '@/features/modules/preferences';
+import { XpBar } from '@/features/progress/xp-bar';
 import { groupBy } from '@/lib/collections';
 import { formatDayLong, monthOf, monthWeeks, relativeDayLabel, type DateKey } from '@/lib/dates';
 import { capitalize } from '@/lib/format';
@@ -82,6 +83,7 @@ export function TodayScreen() {
         </HeaderActions>
       }>
       <ScrollView contentContainerStyle={styles.content}>
+        <XpBar />
         <Card style={styles.calendarCard}>
           <MonthCalendar
             today={today}

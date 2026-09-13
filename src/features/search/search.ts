@@ -11,7 +11,7 @@ import type { DateKey } from '@/lib/dates';
 import { matchesSearch } from '@/lib/search';
 import type { ThemeColors } from '@/theme/theme';
 
-export type SearchKind = 'task' | 'note' | 'journal' | 'habit' | 'workout' | 'transaction' | 'trip' | 'media';
+export type SearchKind = 'task' | 'note' | 'journal' | 'habit' | 'workout' | 'transaction' | 'trip' | 'media' | 'dream';
 
 export type SearchResult = {
   key: string;
@@ -23,7 +23,15 @@ export type SearchResult = {
   /** Dokąd prowadzi stuknięcie. */
   target:
     | {
-        pathname: '/zadanie/[id]' | '/notatka/[id]' | '/nawyk/[id]' | '/trening/[id]' | '/finanse/transakcja/[id]' | '/podroz/[id]' | '/tytul/[id]';
+        pathname:
+          | '/zadanie/[id]'
+          | '/notatka/[id]'
+          | '/nawyk/[id]'
+          | '/trening/[id]'
+          | '/finanse/transakcja/[id]'
+          | '/podroz/[id]'
+          | '/tytul/[id]'
+          | '/marzenie/[id]';
         params: { id: string };
       }
     | {
@@ -41,6 +49,7 @@ export const SEARCH_KINDS: Record<SearchKind, { label: string; icon: IconName; c
   transaction: { label: 'Wydatki', icon: 'payments', color: 'finance' },
   trip: { label: 'Podróże', icon: 'flight', color: 'tasks' },
   media: { label: 'Kultura', icon: 'theater_comedy', color: 'journal' },
+  dream: { label: 'Marzenia', icon: 'auto_awesome', color: 'journal' },
 };
 
 const LIMIT_PER_KIND = 20;
@@ -51,7 +60,7 @@ const LIMIT_PER_KIND = 20;
  * `query` musi być już znormalizowane (normalizeForSearch).
  */
 export async function searchEverything(db: SQLiteDatabase, query: string): Promise<SearchResult[]> {
-  const [tasks, subtasks, notes, journal, habits, workouts, transactions, trips, tripItems, media] = await Promise.all([
+  const [tasks, subtasks, notes, journal, habits, workouts, transactions, trips, tripItems, media, dreams] = await Promise.all([
     db.getAllAsync<{ id: number; title: string; notes: string; due_date: DateKey | null; completed_at: string | null }>(
       'SELECT id, title, notes, due_date, completed_at FROM tasks ORDER BY completed_at IS NOT NULL, due_date IS NULL, due_date, id DESC',
     ),
@@ -77,6 +86,9 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
     db.getAllAsync<{ trip_id: number; text: string }>("SELECT trip_id, text FROM trip_items WHERE kind = 'plan'"),
     db.getAllAsync<{ id: number; kind: MediaKind; title: string; creator: string; status: MediaStatus; platform: string; note: string; finished_on: DateKey | null }>(
       'SELECT id, kind, title, creator, status, platform, note, finished_on FROM media_items ORDER BY finished_on DESC, id DESC',
+    ),
+    db.getAllAsync<{ id: number; title: string; icon: string; note: string; done_on: DateKey | null }>(
+      'SELECT id, title, icon, note, done_on FROM dreams ORDER BY done_on IS NOT NULL, id DESC',
     ),
   ]);
 
@@ -206,6 +218,19 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
         body: item.note || [item.creator, MEDIA_KINDS[item.kind].statuses[item.status], item.platform].filter(Boolean).join(' · '),
         date: item.finished_on,
         target: { pathname: '/tytul/[id]' as const, params: { id: String(item.id) } },
+      })),
+  );
+
+  push(
+    dreams
+      .filter((dream) => matchesSearch(`${dream.title}\n${dream.note}`, query))
+      .map((dream) => ({
+        key: `dream:${dream.id}`,
+        kind: 'dream' as const,
+        title: `${dream.icon} ${dream.title}`,
+        body: dream.note || (dream.done_on ? 'Spełnione' : 'Przed tobą'),
+        date: dream.done_on,
+        target: { pathname: '/marzenie/[id]' as const, params: { id: String(dream.id) } },
       })),
   );
 

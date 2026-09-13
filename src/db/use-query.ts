@@ -39,7 +39,10 @@ export type Table =
   | 'media_items'
   | 'trips'
   | 'trip_items'
-  | 'trip_photos';
+  | 'trip_photos'
+  | 'chore_logs'
+  | 'daily_reviews'
+  | 'dreams';
 
 /**
  * Wykonuje SELECT i ponawia go automatycznie, gdy zmieni się któraś z tabel w `tables`.
@@ -67,7 +70,10 @@ export function useQuery<T>(sql: string, params: SQLiteBindParams, tables: reado
           // Ignorujemy wynik, jeśli w międzyczasie wystartowało nowsze zapytanie.
           if (active && request === latestRequest) setState({ rows, loaded: true });
         },
-        (error) => console.error('useQuery:', error),
+        // Po odmontowaniu baza bywa już zamknięta (np. Fast Refresh) — wtedy błąd nikogo nie dotyczy.
+        (error) => {
+          if (active) console.error('useQuery:', error);
+        },
       );
     };
 

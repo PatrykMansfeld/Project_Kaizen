@@ -28,6 +28,8 @@ export type MediaItem = {
   started_on: DateKey | null;
   finished_on: DateKey | null;
   note: string;
+  /** Okładka (plik w katalogu aplikacji) albo null. */
+  cover_uri: string | null;
   created_at: string;
 };
 
@@ -55,13 +57,14 @@ function toParams(input: MediaInput) {
     $started: input.started_on,
     $finished: input.finished_on,
     $note: input.note,
+    $cover: input.cover_uri ?? null,
   };
 }
 
 export function createMediaItem(db: SQLiteDatabase, input: MediaInput) {
   return db.runAsync(
-    `INSERT INTO media_items (kind, title, creator, status, rating, platform, release_year, season, episode, total, started_on, finished_on, note)
-     VALUES ($kind, $title, $creator, $status, $rating, $platform, $year, $season, $episode, $total, $started, $finished, $note)`,
+    `INSERT INTO media_items (kind, title, creator, status, rating, platform, release_year, season, episode, total, started_on, finished_on, note, cover_uri)
+     VALUES ($kind, $title, $creator, $status, $rating, $platform, $year, $season, $episode, $total, $started, $finished, $note, $cover)`,
     toParams(input),
   );
 }
@@ -70,7 +73,7 @@ export function updateMediaItem(db: SQLiteDatabase, id: number, input: MediaInpu
   return db.runAsync(
     `UPDATE media_items SET kind = $kind, title = $title, creator = $creator, status = $status, rating = $rating,
        platform = $platform, release_year = $year, season = $season, episode = $episode, total = $total,
-       started_on = $started, finished_on = $finished, note = $note
+       started_on = $started, finished_on = $finished, note = $note, cover_uri = $cover
      WHERE id = $id`,
     { ...toParams(input), $id: id },
   );
