@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { HeaderTextButton } from '@/components/header';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
@@ -21,8 +21,9 @@ import {
   type MeasurementType,
 } from '@/db/measurements';
 import { confirmDelete } from '@/lib/alerts';
-import { addDays, type DateKey } from '@/lib/dates';
+import { type DateKey } from '@/lib/dates';
 import { formatDecimal, parseDecimal } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 
 function isMeasurementType(value: unknown): value is MeasurementType {
@@ -42,21 +43,12 @@ export default function MeasurementEditScreen() {
   const [date, setDate] = useState<DateKey>(today);
   const [valueText, setValueText] = useState('');
   const [lastValue, setLastValue] = useState<number | null>(null);
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getMeasurement(db, measurementId).then((measurement) => {
-      if (!measurement) {
-        router.back();
-        return;
-      }
-      setType(measurement.type);
-      setDate(measurement.date);
-      setValueText(formatDecimal(measurement.value, 2));
-      setLoaded(true);
-    });
-  }, [db, isNew, measurementId]);
+  const loaded = useEditRecord(isNew ? null : measurementId, () => getMeasurement(db, measurementId), (measurement) => {
+    setType(measurement.type);
+    setDate(measurement.date);
+    setValueText(formatDecimal(measurement.value, 2));
+  });
 
   // Podpowiedź z ostatniego pomiaru tego rodzaju.
   useEffect(() => {
@@ -121,10 +113,7 @@ export default function MeasurementEditScreen() {
               onChange={(day) => day && setDate(day)}
               today={today}
               pickerTitle="Data pomiaru"
-              presets={[
-                { label: 'Dziś', date: today },
-                { label: 'Wczoraj', date: addDays(today, -1) },
-              ]}
+              presets={recentDayPresets(today)}
             />
           </Section>
 

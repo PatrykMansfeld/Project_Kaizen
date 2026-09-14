@@ -5,11 +5,11 @@ import { AppText } from '@/components/app-text';
 import { BottomSheet, SheetActions } from '@/components/bottom-sheet';
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { TextField } from '@/components/text-field';
 import { addSession, deleteSession, updateSession, type PracticeSession } from '@/db/skills';
-import { addDays, type DateKey } from '@/lib/dates';
-import { formatDuration } from '@/lib/format';
+import { type DateKey } from '@/lib/dates';
+import { formatDuration, parseWholeNumber } from '@/lib/format';
 
 const MINUTES = [15, 30, 45, 60, 90, 120];
 
@@ -35,7 +35,7 @@ function SessionForm({ target, today, onClose }: Props & { target: NonNullable<P
   const [minutes, setMinutes] = useState(existing ? String(existing.minutes) : '30');
   const [date, setDate] = useState<DateKey>(existing?.date ?? today);
   const [note, setNote] = useState(existing?.note ?? '');
-  const value = /^\d+$/.test(minutes.trim()) ? Number(minutes.trim()) : 0;
+  const value = parseWholeNumber(minutes) ?? 0;
   const valid = value > 0 && value <= 24 * 60;
 
   const save = async () => {
@@ -70,10 +70,7 @@ function SessionForm({ target, today, onClose }: Props & { target: NonNullable<P
         onChange={(day) => day && setDate(day)}
         today={today}
         pickerTitle="Dzień sesji"
-        presets={[
-          { label: 'Dziś', date: today },
-          { label: 'Wczoraj', date: addDays(today, -1) },
-        ]}
+        presets={recentDayPresets(today)}
       />
       <TextField value={note} onChangeText={setNote} placeholder="Co ćwiczyłeś? (opcjonalnie)" maxLength={120} />
       <SheetActions>

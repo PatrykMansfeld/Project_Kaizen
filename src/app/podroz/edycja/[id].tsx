@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -18,8 +18,9 @@ import { moneyInputText, parseMoney } from '@/features/finance/money';
 import { TRIP_ICONS, tripLength } from '@/features/trips/trips';
 import { confirmDelete } from '@/lib/alerts';
 import { addDays, diffDays, type DateKey } from '@/lib/dates';
-import { plural } from '@/lib/format';
+import { FORMS, plural } from '@/lib/format';
 import { deleteImageFiles } from '@/lib/images';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { PALETTE, PALETTE_KEYS, paletteColor, type PaletteKey } from '@/theme/palette';
 import { useTheme } from '@/theme/use-theme';
@@ -54,28 +55,19 @@ export default function TripEditScreen() {
     budget: '',
     note: '',
   });
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getTrip(db, tripId).then((trip) => {
-      if (!trip) {
-        router.back();
-        return;
-      }
-      setForm({
-        name: trip.name,
-        destination: trip.destination,
-        icon: trip.icon,
-        color: (trip.color in PALETTE ? trip.color : 'blue') as PaletteKey,
-        start: trip.start_date,
-        end: trip.end_date,
-        budget: trip.budget ? moneyInputText(trip.budget) : '',
-        note: trip.note,
-      });
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : tripId, () => getTrip(db, tripId), (trip) => {
+    setForm({
+      name: trip.name,
+      destination: trip.destination,
+      icon: trip.icon,
+      color: (trip.color in PALETTE ? trip.color : 'blue') as PaletteKey,
+      start: trip.start_date,
+      end: trip.end_date,
+      budget: trip.budget ? moneyInputText(trip.budget) : '',
+      note: trip.note,
     });
-  }, [db, isNew, tripId]);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const color = paletteColor(form.color, dark);
@@ -152,7 +144,7 @@ export default function TripEditScreen() {
               ]}
             />
           </Section>
-          <Section title="Powrót" meta={plural(length, ['dzień', 'dni', 'dni'])}>
+          <Section title="Powrót" meta={plural(length, FORMS.day)}>
             <DateChoice
               value={form.end}
               onChange={(end) => end && update({ end: end < form.start ? form.start : end })}

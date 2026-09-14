@@ -14,7 +14,7 @@ import { RECORD_LABELS, personalRecords, summarizeSessions, type ExerciseSetRow,
 import { StatRow, StatTile } from '@/features/stats/charts';
 import { LineChart } from '@/features/stats/line-chart';
 import { diffDays, formatDayShort } from '@/lib/dates';
-import { formatDecimal, plural } from '@/lib/format';
+import { FORMS, formatDecimal, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/use-theme';
 
@@ -108,7 +108,7 @@ export default function ExerciseScreen() {
       ) : null}
 
       {sessions.length > 0 ? (
-        <Section title={`Historia (${plural(sessions.length, ['trening', 'treningi', 'treningów'])})`}>
+        <Section title={`Historia (${plural(sessions.length, FORMS.workout)})`}>
           {[...sessions].reverse().map((session) => (
             <Card
               key={session.workoutId}

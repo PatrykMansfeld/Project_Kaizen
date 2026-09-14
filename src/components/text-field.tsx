@@ -1,13 +1,14 @@
 import { StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { radius, spacing } from '@/theme/theme';
+import { bodyFont, radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 type Props = TextInputProps & { label?: string };
 
 export function TextField({ label, style, multiline, ...rest }: Props) {
-  const { colors } = useTheme();
+  const theme = useTheme();
+  const { colors } = theme;
 
   return (
     <View style={styles.container}>
@@ -25,7 +26,7 @@ export function TextField({ label, style, multiline, ...rest }: Props) {
         style={[
           styles.input,
           multiline && styles.multiline,
-          { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text },
+          { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text, fontFamily: bodyFont(theme) },
           style,
         ]}
         {...rest}

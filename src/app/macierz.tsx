@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet } from '@/components/bottom-sheet';
+import { BottomSheet, SheetTitle } from '@/components/bottom-sheet';
 import { Button, IconButton } from '@/components/button';
 import { EmptyState } from '@/components/empty-state';
 import { Icon } from '@/components/icon';
@@ -121,12 +121,7 @@ function MoveContent({ task, today, onClose }: { task: Task; today: DateKey; onC
 
   return (
     <>
-      <View style={styles.sheetTitle}>
-        <AppText variant="heading" numberOfLines={2}>
-          {task.title}
-        </AppText>
-        <AppText tone="textSecondary">Teraz: {QUADRANTS[current].title.toLowerCase()}. Przenieś do:</AppText>
-      </View>
+      <SheetTitle title={task.title} subtitle={`Teraz: ${QUADRANTS[current].title.toLowerCase()}. Przenieś do:`} />
       {QUADRANT_KEYS.filter((key) => key !== current).map((key) => {
         const info = QUADRANTS[key];
         const { changes } = moveToQuadrant(task, key, today);
@@ -156,7 +151,6 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   tile: { flexBasis: '48%', flexGrow: 1, gap: 2, padding: spacing.md, borderRadius: radius.md, borderWidth: 2 },
   tileHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sheetTitle: { gap: spacing.xs },
   option: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: spacing.md, borderRadius: radius.md },
   flex: { flex: 1, gap: 2 },
 });

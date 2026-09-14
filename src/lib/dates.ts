@@ -125,6 +125,12 @@ export function formatDateRange(from: DateKey, to: DateKey, today: DateKey = tod
   return `${a.getDate()} ${MONTHS_GENITIVE[a.getMonth()]} – ${b.getDate()} ${MONTHS_GENITIVE[b.getMonth()]}${year}`;
 }
 
+/** „13.09” — krótki podpis dnia (osie wykresów, chipy dni). */
+export function formatDayMonth(key: DateKey): string {
+  const [, month, day] = key.split('-');
+  return `${Number(day)}.${month}`;
+}
+
 /** „Dziś”, „Wczoraj”, „Jutro”, a dalej „10 września” — do list i podpisów. */
 export function formatDayRelative(key: DateKey, today: DateKey = todayKey()): string {
   return relativeDayLabel(key, today) ?? formatDayShort(key, today);

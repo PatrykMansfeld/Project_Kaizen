@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -15,6 +15,7 @@ import { moneyInputText, parseMoney } from '@/features/finance/money';
 import { warrantyLabel } from '@/features/home/home';
 import { confirmDelete } from '@/lib/alerts';
 import { addMonths, type DateKey } from '@/lib/dates';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
 
@@ -36,26 +37,17 @@ export default function WarrantyEditScreen() {
     store: '',
     note: '',
   });
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getWarranty(db, warrantyId).then((warranty) => {
-      if (!warranty) {
-        router.back();
-        return;
-      }
-      setForm({
-        name: warranty.name,
-        purchaseDate: warranty.purchase_date,
-        expiresOn: warranty.expires_on,
-        price: warranty.price ? moneyInputText(warranty.price) : '',
-        store: warranty.store,
-        note: warranty.note,
-      });
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : warrantyId, () => getWarranty(db, warrantyId), (warranty) => {
+    setForm({
+      name: warranty.name,
+      purchaseDate: warranty.purchase_date,
+      expiresOn: warranty.expires_on,
+      price: warranty.price ? moneyInputText(warranty.price) : '',
+      store: warranty.store,
+      note: warranty.note,
     });
-  }, [db, isNew, warrantyId]);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const price = parseMoney(form.price);

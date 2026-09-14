@@ -2,7 +2,7 @@ import type { IconName } from '@/components/icon';
 import type { Habit } from '@/db/habits';
 import { habitStartDay, isScheduled } from '@/features/habits/streak';
 import { addDays, weekdayIndex, type DateKey } from '@/lib/dates';
-import { formatDecimal, formatDuration, plural } from '@/lib/format';
+import { FORMS, formatDecimal, formatDuration, plural } from '@/lib/format';
 
 /** „w poniedziałki”, „we wtorki”… — do zdań o powtarzających się dniach. */
 const ON_WEEKDAYS = ['w poniedziałki', 'we wtorki', 'w środy', 'w czwartki', 'w piątki', 'w soboty', 'w niedziele'];
@@ -125,7 +125,7 @@ export function computeInsights(data: InsightData): Insight[] {
           : diff <= -MOOD_EPSILON
             ? 'W dni z treningiem nastrój bywa słabszy'
             : 'Trening nie zmienia wyraźnie nastroju',
-      detail: `Średnio ${mood(workoutMood.a)} vs ${mood(workoutMood.b)} w dni bez treningu (${plural(workoutMood.countA, ['dzień', 'dni', 'dni'])} i ${plural(workoutMood.countB, ['dzień', 'dni', 'dni'])} z oceną nastroju).`,
+      detail: `Średnio ${mood(workoutMood.a)} vs ${mood(workoutMood.b)} w dni bez treningu (${plural(workoutMood.countA, FORMS.day)} i ${plural(workoutMood.countB, FORMS.day)} z oceną nastroju).`,
       compare: moodCompare(['Z treningiem', 'Bez treningu'], workoutMood),
     });
   }
@@ -293,7 +293,7 @@ export function computeInsights(data: InsightData): Insight[] {
       module: 'activity',
       icon: 'directions_run',
       title: `Najczęściej trenujesz ${ON_WEEKDAYS[ends.best]}`,
-      detail: `${plural(values[ends.best]!, ['trening', 'treningi', 'treningów'])} z ${data.workouts.length} w tym okresie.`,
+      detail: `${plural(values[ends.best]!, FORMS.workout)} z ${data.workouts.length} w tym okresie.`,
       weekdays: { values, max: values[ends.best]!, highlight: ends.best, format: (value) => String(value) },
     });
   }
@@ -311,7 +311,7 @@ export function computeInsights(data: InsightData): Insight[] {
       module: 'tasks',
       icon: 'task_alt',
       title: `Najwięcej zadań kończysz ${ON_WEEKDAYS[ends.best]}`,
-      detail: `${plural(values[ends.best]!, ['zadanie', 'zadania', 'zadań'])} z ${data.tasksDone.length} ukończonych w tym okresie.`,
+      detail: `${plural(values[ends.best]!, FORMS.task)} z ${data.tasksDone.length} ukończonych w tym okresie.`,
       weekdays: { values, max: values[ends.best]!, highlight: ends.best, format: (value) => String(value) },
     });
   }

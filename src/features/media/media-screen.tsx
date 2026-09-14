@@ -1,30 +1,55 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Alert, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet, SheetActions } from '@/components/bottom-sheet';
+import { BottomSheet, SheetActions, SheetTitle } from '@/components/bottom-sheet';
 import { Button, IconButton } from '@/components/button';
+import { HeaderActions } from '@/components/header';
 import { Card } from '@/components/card';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { EmptyState } from '@/components/empty-state';
 import { PromptSheet } from '@/components/prompt-sheet';
+import { RatingPicker } from '@/components/rating-picker';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
-import { StarRating } from '@/components/star-rating';
-import { MEDIA_SQL, finishMediaItem, nextEpisode, setBookPage, startMediaItem, type MediaItem, type MediaKind } from '@/db/media';
+import { ShowAllLink, TextLink } from '@/components/text-link';
+import {
+  MEDIA_SQL,
+  addPlayTime,
+  finishMediaItem,
+  nextEpisode,
+  setBookPage,
+  startMediaItem,
+  type MediaItem,
+  type MediaKind,
+} from '@/db/media';
 import { useQuery } from '@/db/use-query';
 import { Meter, StatRow, StatTile } from '@/features/stats/charts';
-import { addDays, formatDayShort, type DateKey } from '@/lib/dates';
-import { plural } from '@/lib/format';
+import { formatDayShort, type DateKey } from '@/lib/dates';
+import { parseWholeNumber, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
-import { radius, spacing } from '@/theme/theme';
+import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
-import { MEDIA_KINDS, MEDIA_KIND_KEYS, bookProgress, formatRating, mediaYearStats, pickRandom, progressLabel, stars } from './media';
+import {
+  MEDIA_KINDS,
+  MEDIA_KIND_KEYS,
+  RATING_LABELS,
+  bookProgress,
+  formatRating,
+  formatScore,
+  formatTimeSpent,
+  genreStats,
+  mediaYearStats,
+  parseGenres,
+  pickRandom,
+  progressLabel,
+  timeSpent,
+} from './media';
+import { MediaThumb } from './media-thumb';
 
 /** Ile ukończonych pokazać przed „Pokaż wszystkie”. */
 const DONE_PREVIEW = 8;
@@ -38,6 +63,7 @@ export function MediaScreen() {
   const today = useToday();
   const { colors } = useTheme();
   const [kind, setKind] = useState<MediaKind | null>(null);
+  const [genre, setGenre] = useState<string | null>(null);
   const [allDone, setAllDone] = useState(false);
   const [showDropped, setShowDropped] = useState(false);
   const [finishing, setFinishing] = useState<MediaItem | null>(null);
@@ -45,7 +71,13 @@ export function MediaScreen() {
   const lastPick = useRef<number | null>(null);
 
   const { rows: items, loaded } = useQuery<MediaItem>(MEDIA_SQL, [], ['media_items']);
-  const filtered = kind ? items.filter((item) => item.kind === kind) : items;
+  const ofKind = kind ? items.filter((item) => item.kind === kind) : items;
+  // Gatunki do filtra: tylko te, które występują w wybranym rodzaju (najczęstsze pierwsze).
+  const genres = genreStats(ofKind).map((stat) => stat.genre);
+  const activeGenre = genre && genres.some((name) => name.toLowerCase() === genre.toLowerCase()) ? genre : null;
+  const filtered = activeGenre
+    ? ofKind.filter((item) => parseGenres(item.genres).some((name) => name.toLowerCase() === activeGenre.toLowerCase()))
+    : ofKind;
   const active = filtered.filter((item) => item.status === 'active');
   const planned = filtered.filter((item) => item.status === 'planned');
   const done = filtered.filter((item) => item.status === 'done');
@@ -74,7 +106,7 @@ export function MediaScreen() {
   };
 
   const savePage = (text: string) => {
-    const value = /^\d+$/.test(text.trim()) ? Number(text.trim()) : NaN;
+    const value = parseWholeNumber(text) ?? NaN;
     if (!page || !(value >= 0)) {
       Alert.alert('Niepoprawna liczba', 'Wpisz numer strony, np. 120.');
       return;
@@ -86,14 +118,23 @@ export function MediaScreen() {
     <ScrollScreen
       title="Kultura"
       gap={spacing.lg}
-      headerRight={<IconButton icon="add" accessibilityLabel="Dodaj tytuł" onPress={() => open('nowy')} />}>
+      headerRight={
+        <HeaderActions>
+          <IconButton
+            icon="leaderboard"
+            accessibilityLabel="Ranking ulubionych"
+            onPress={() => router.push({ pathname: '/kultura-ranking', params: kind ? { rodzaj: kind } : {} })}
+          />
+          <IconButton icon="add" variant="filled" accessibilityLabel="Dodaj tytuł" onPress={() => open('nowy')} />
+        </HeaderActions>
+      }>
       {loaded && items.length === 0 ? (
         <>
           <EmptyState
             icon="theater_comedy"
             color={colors.journal}
             title="Co obejrzeć, przeczytać, w co zagrać?"
-            description="Zapisuj filmy, seriale, anime, książki, mangi i gry, które chcesz poznać. Po skończeniu oceń je gwiazdkami — na koniec roku zobaczysz, co było najlepsze."
+            description="Zapisuj filmy, seriale, anime, książki, mangi i gry, które chcesz poznać. Po skończeniu oceń je w skali 1–10 — na koniec roku zobaczysz, co było najlepsze."
           />
           <Button label="Dodaj pierwszy tytuł" icon="add" onPress={() => open('nowy')} />
         </>
@@ -112,18 +153,32 @@ export function MediaScreen() {
               />
             ))}
           </ChipRow>
+          {genres.length > 0 ? (
+            <ChipRow scroll>
+              <Chip label="Każdy gatunek" selected={activeGenre === null} onPress={() => setGenre(null)} />
+              {genres.map((name) => (
+                <Chip
+                  key={name}
+                  label={name}
+                  selected={activeGenre?.toLowerCase() === name.toLowerCase()}
+                  onPress={() => setGenre(activeGenre?.toLowerCase() === name.toLowerCase() ? null : name)}
+                />
+              ))}
+            </ChipRow>
+          ) : null}
 
           <View style={styles.stats}>
             <StatRow>
               <StatTile label={`Ukończone w ${year}`} value={String(stats.total)} />
               <StatTile label="Średnia ocena" value={stats.averageRating !== null ? formatRating(stats.averageRating) : '—'} />
-              <StatTile label="Na liście" value={String(planned.length)} />
+              <StatTile label={`Czas w ${year}`} value={stats.minutes > 0 ? formatTimeSpent(stats.minutes) : '—'} />
             </StatRow>
             {breakdown || stats.best ? (
               <AppText variant="caption" tone="textSecondary">
-                {[breakdown, stats.best ? `najlepsze: ${stats.best.title} ${stars(stats.best.rating ?? 0)}` : ''].filter(Boolean).join(' · ')}
+                {[breakdown, stats.best ? `najlepsze: ${stats.best.title} ${formatScore(stats.best.rating ?? 0)}` : ''].filter(Boolean).join(' · ')}
               </AppText>
             ) : null}
+            <TextLink label={`Rok w kulturze ${year} ›`} onPress={() => router.push({ pathname: '/kultura-rok', params: { rok: String(year) } })} />
           </View>
 
           {active.length > 0 ? (
@@ -134,6 +189,7 @@ export function MediaScreen() {
                   item={item}
                   onPress={() => open(item.id)}
                   onEpisode={() => nextEpisode(db, item.id)}
+                  onHour={() => addPlayTime(db, item.id, 60)}
                   onPage={() => setPage(item)}
                   onFinish={() => setFinishing(item)}
                 />
@@ -146,11 +202,7 @@ export function MediaScreen() {
             meta={planned.length > 0 ? String(planned.length) : undefined}
             action={
               planned.length > 1 ? (
-                <Pressable onPress={suggest} hitSlop={8} accessibilityRole="button" accessibilityLabel="Wylosuj coś z listy">
-                  <AppText variant="caption" tone="accent">
-                    🎲 Losuj
-                  </AppText>
-                </Pressable>
+                <TextLink label="🎲 Losuj" onPress={suggest} accessibilityLabel="Wylosuj coś z listy" />
               ) : undefined
             }>
             {planned.length === 0 ? (
@@ -179,7 +231,7 @@ export function MediaScreen() {
                 <MediaRow key={item.id} item={item} today={today} onPress={() => open(item.id)} />
               ))}
               {done.length > DONE_PREVIEW ? (
-                <ToggleLink label={allDone ? 'Pokaż mniej' : `Pokaż wszystkie (${done.length})`} onPress={() => setAllDone(!allDone)} />
+                <ShowAllLink expanded={allDone} total={done.length} onPress={() => setAllDone(!allDone)} />
               ) : null}
             </Section>
           ) : null}
@@ -187,7 +239,7 @@ export function MediaScreen() {
           {dropped.length > 0 ? (
             <Section
               title={`Porzucone (${dropped.length})`}
-              action={<ToggleLink label={showDropped ? 'Zwiń' : 'Pokaż'} onPress={() => setShowDropped(!showDropped)} />}>
+              action={<TextLink label={showDropped ? 'Zwiń' : 'Pokaż'} onPress={() => setShowDropped(!showDropped)} />}>
               {showDropped
                 ? dropped.map((item) => <MediaRow key={item.id} item={item} today={today} onPress={() => open(item.id)} />)
                 : null}
@@ -210,21 +262,11 @@ export function MediaScreen() {
   );
 }
 
-function ToggleLink({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} hitSlop={8} accessibilityRole="button">
-      <AppText variant="caption" tone="accent">
-        {label}
-      </AppText>
-    </Pressable>
-  );
-}
-
 /** Podpis wiersza: gdzie, rok, postęp albo ocena i data ukończenia. */
 function mediaDetail(item: MediaItem, today: DateKey) {
   const parts =
     item.status === 'done'
-      ? [item.rating ? stars(item.rating) : null, item.creator, item.finished_on ? formatDayShort(item.finished_on, today) : null]
+      ? [item.rating ? `★ ${formatScore(item.rating)}` : null, item.creator, item.finished_on ? formatDayShort(item.finished_on, today) : null]
       : [item.creator, progressLabel(item), item.platform, item.status === 'planned' && item.release_year ? String(item.release_year) : null];
   return parts.filter(Boolean).join(' · ');
 }
@@ -251,13 +293,22 @@ function MediaRow({ item, today, onPress, action }: { item: MediaItem; today: Da
   );
 }
 
-type ActiveCardProps = { item: MediaItem; onPress: () => void; onEpisode: () => void; onPage: () => void; onFinish: () => void };
+type ActiveCardProps = {
+  item: MediaItem;
+  onPress: () => void;
+  onEpisode: () => void;
+  onHour: () => void;
+  onPage: () => void;
+  onFinish: () => void;
+};
 
-/** Tytuł w trakcie: postęp (+1 odcinek / rozdział, strona książki) i „ukończone”. */
-function ActiveCard({ item, onPress, onEpisode, onPage, onFinish }: ActiveCardProps) {
+/** Tytuł w trakcie: postęp (+1 odcinek / rozdział, strona książki, +1 h gry), czas i „ukończone”. */
+function ActiveCard({ item, onPress, onEpisode, onHour, onPage, onFinish }: ActiveCardProps) {
   const { colors } = useTheme();
   const info = MEDIA_KINDS[item.kind];
-  const detail = [info.statuses.active, progressLabel(item), item.creator, item.platform].filter(Boolean).join(' · ');
+  const minutes = timeSpent(item);
+  const time = minutes > 0 ? (item.kind === 'game' ? `${formatTimeSpent(minutes)} gry` : `~${formatTimeSpent(minutes)}`) : null;
+  const detail = [info.statuses.active, progressLabel(item), time, item.creator, item.platform].filter(Boolean).join(' · ');
   const read = bookProgress(item);
   return (
     <Card onPress={onPress} style={styles.active}>
@@ -277,29 +328,14 @@ function ActiveCard({ item, onPress, onEpisode, onPage, onFinish }: ActiveCardPr
         {info.progress === 'episodes' ? <Chip label="+1 odcinek" icon="add" selected={false} onPress={onEpisode} /> : null}
         {info.progress === 'chapters' ? <Chip label="+1 rozdział" icon="add" selected={false} onPress={onEpisode} /> : null}
         {info.progress === 'pages' ? <Chip label="Strona…" icon="menu_book" selected={false} onPress={onPage} /> : null}
+        {item.kind === 'game' ? <Chip label="+1 h" icon="add" selected={false} onPress={onHour} /> : null}
         <Chip label={info.finishLabel} icon="check" selected={false} onPress={onFinish} />
       </ChipRow>
     </Card>
   );
 }
 
-/** Okładka tytułu, a bez niej (albo gdy pliku już nie ma, np. po przywróceniu kopii) — emoji rodzaju. */
-function MediaThumb({ item, size }: { item: MediaItem; size: 'small' | 'large' }) {
-  const { colors } = useTheme();
-  const [broken, setBroken] = useState(false);
-  if (!item.cover_uri || broken) return <AppText style={styles.emoji}>{MEDIA_KINDS[item.kind].emoji}</AppText>;
-  return (
-    <Image
-      source={{ uri: item.cover_uri }}
-      style={[size === 'large' ? styles.coverLarge : styles.coverSmall, { backgroundColor: colors.surfaceAlt }]}
-      contentFit="cover"
-      onError={() => setBroken(true)}
-      accessibilityIgnoresInvertColors
-    />
-  );
-}
-
-/** Okienko „ukończone”: ocena gwiazdkami i dzień. */
+/** Okienko „ukończone”: ocena 1–10 i dzień. */
 function FinishSheet({ item, today, onClose }: { item: MediaItem | null; today: DateKey; onClose: () => void }) {
   return (
     <BottomSheet visible={item !== null} onClose={onClose}>
@@ -320,24 +356,14 @@ function FinishContent({ item, today, onClose }: { item: MediaItem; today: DateK
 
   return (
     <>
-      <View style={styles.sheetTitle}>
-        <AppText variant="heading" numberOfLines={2}>
-          {MEDIA_KINDS[item.kind].emoji} {item.title}
-        </AppText>
-        <AppText tone="textSecondary">Jak oceniasz? Stuknij gwiazdkę jeszcze raz, żeby usunąć ocenę.</AppText>
-      </View>
-      <View style={styles.center}>
-        <StarRating value={rating} onChange={setRating} size={44} />
-      </View>
+      <SheetTitle title={`${MEDIA_KINDS[item.kind].emoji} ${item.title}`} subtitle="Jak oceniasz w skali 1–10?" />
+      <RatingPicker value={rating} onChange={setRating} labels={RATING_LABELS} />
       <DateChoice
         value={date}
         onChange={(day) => day && setDate(day)}
         today={today}
         pickerTitle="Kiedy?"
-        presets={[
-          { label: 'Dziś', date: today },
-          { label: 'Wczoraj', date: addDays(today, -1) },
-        ]}
+        presets={recentDayPresets(today)}
       />
       <SheetActions>
         <Button label="Anuluj" variant="secondary" onPress={onClose} />
@@ -350,11 +376,6 @@ function FinishContent({ item, today, onClose }: { item: MediaItem; today: DateK
 const styles = StyleSheet.create({
   flex: { flex: 1, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  emoji: { fontSize: 24, width: 32, textAlign: 'center' },
-  coverSmall: { width: 32, height: 48, borderRadius: radius.sm / 2 },
-  coverLarge: { width: 44, height: 66, borderRadius: radius.sm / 2 },
   stats: { gap: spacing.sm },
   active: { gap: spacing.md },
-  sheetTitle: { gap: spacing.xs },
-  center: { alignItems: 'center' },
 });

@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -23,6 +23,7 @@ import {
 import { FINANCE_ICONS } from '@/features/finance/finance-icons';
 import { moneyInputText, parseMoney } from '@/features/finance/money';
 import { confirmDelete } from '@/lib/alerts';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { PALETTE, PALETTE_KEYS, paletteColor, type PaletteKey } from '@/theme/palette';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -44,25 +45,16 @@ export default function FinanceCategoryEditScreen() {
     type: params.type === 'income' ? 'income' : 'expense',
     budget: '',
   });
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getCategory(db, categoryId).then((category) => {
-      if (!category) {
-        router.back();
-        return;
-      }
-      setForm({
-        name: category.name,
-        icon: category.icon,
-        color: (category.color in PALETTE ? category.color : 'teal') as PaletteKey,
-        type: category.type,
-        budget: category.monthly_budget ? moneyInputText(category.monthly_budget) : '',
-      });
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : categoryId, () => getCategory(db, categoryId), (category) => {
+    setForm({
+      name: category.name,
+      icon: category.icon,
+      color: (category.color in PALETTE ? category.color : 'teal') as PaletteKey,
+      type: category.type,
+      budget: category.monthly_budget ? moneyInputText(category.monthly_budget) : '',
     });
-  }, [db, isNew, categoryId]);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const budget = parseMoney(form.budget);

@@ -34,7 +34,7 @@ import {
   weekdayIndex,
   type DateKey,
 } from '@/lib/dates';
-import { formatDecimal, formatDuration, plural } from '@/lib/format';
+import { FORMS, formatDecimal, formatDuration, plural } from '@/lib/format';
 import { useAutosave } from '@/lib/use-autosave';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
@@ -136,7 +136,7 @@ function ReviewForm({ weekStart }: { weekStart: DateKey }) {
   const addAsTasks = () =>
     Alert.alert(
       'Dodać jako zadania?',
-      `${plural(priorities.length, ['zadanie', 'zadania', 'zadań'])} z terminem na poniedziałek, ${formatDayShort(nextMonday)}.`,
+      `${plural(priorities.length, FORMS.task)} z terminem na poniedziałek, ${formatDayShort(nextMonday)}.`,
       [
         { text: 'Anuluj', style: 'cancel' },
         {

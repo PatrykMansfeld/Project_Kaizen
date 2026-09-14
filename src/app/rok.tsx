@@ -21,7 +21,7 @@ import {
   type PixelMetric,
 } from '@/features/insights/year-pixels';
 import { formatDayLong, type DateKey } from '@/lib/dates';
-import { formatDecimal, formatDuration, plural } from '@/lib/format';
+import { FORMS, formatDecimal, formatDuration, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { paletteColor } from '@/theme/palette';
 import { spacing, withAlpha } from '@/theme/theme';
@@ -97,7 +97,7 @@ export default function YearScreen() {
     if (metric === 'mood') {
       if (!moodRows.length) return 'Brak ocen nastroju w tym roku.';
       const average = moodRows.reduce((sum, row) => sum + row.mood, 0) / moodRows.length;
-      return `Średni nastrój ${formatDecimal(average, 1)} · ${plural(moodRows.length, ['dzień', 'dni', 'dni'])} z oceną`;
+      return `Średni nastrój ${formatDecimal(average, 1)} · ${plural(moodRows.length, FORMS.day)} z oceną`;
     }
     if (metric === 'sleep') {
       if (!sleepRows.length) return 'Brak zapisów snu w tym roku.';
@@ -108,7 +108,7 @@ export default function YearScreen() {
       const count = workoutRows.reduce((sum, row) => sum + row.count, 0);
       const minutes = workoutRows.reduce((sum, row) => sum + row.minutes, 0);
       if (!count) return 'Brak treningów w tym roku.';
-      return `${plural(count, ['trening', 'treningi', 'treningów'])} w ${plural(workoutRows.length, ['dzień', 'dni', 'dni'])}${minutes ? ` · ${formatDuration(minutes)}` : ''}`;
+      return `${plural(count, FORMS.workout)} w ${plural(workoutRows.length, FORMS.day)}${minutes ? ` · ${formatDuration(minutes)}` : ''}`;
     }
     if (!habit) return '';
     const done = habitRows.filter((row) => row.count >= habit.target_per_day).length;

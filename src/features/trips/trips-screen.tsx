@@ -1,4 +1,3 @@
-import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
 
@@ -9,13 +8,14 @@ import { EmojiBadge } from '@/components/emoji-badge';
 import { EmptyState } from '@/components/empty-state';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
+import { StoredImage } from '@/components/stored-image';
 import { TRIPS_SQL, TRIP_TABLES, type TripWithTotals } from '@/db/trips';
 import { useQuery } from '@/db/use-query';
 import { formatMoney } from '@/features/finance/money';
 import { Meter } from '@/features/stats/charts';
 import { groupBy } from '@/lib/collections';
 import { formatDateRange, type DateKey } from '@/lib/dates';
-import { plural } from '@/lib/format';
+import { FORMS, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { paletteColor } from '@/theme/palette';
 import { radius, spacing } from '@/theme/theme';
@@ -71,7 +71,7 @@ export function TripsScreen() {
 
       {[...pastByYear].map(([year, yearTrips]) => {
         const summary = tripsYearSummary(yearTrips, year);
-        const meta = [plural(summary.days, ['dzień', 'dni', 'dni']), summary.spent ? formatMoney(summary.spent) : null]
+        const meta = [plural(summary.days, FORMS.day), summary.spent ? formatMoney(summary.spent) : null]
           .filter(Boolean)
           .join(' · ');
         return (
@@ -88,7 +88,7 @@ export function TripsScreen() {
 
 /** Karta podróży: okładka (pierwsze zdjęcie) albo emoji, termin, odliczanie, pakowanie i budżet. */
 function TripCard({ trip, today }: { trip: TripWithTotals; today: DateKey }) {
-  const { colors, dark } = useTheme();
+  const { dark } = useTheme();
   const color = paletteColor(trip.color, dark);
   const phase = tripPhase(trip, today);
   const details = [trip.destination, formatDateRange(trip.start_date, trip.end_date, today)].filter(Boolean).join(' · ');
@@ -98,11 +98,7 @@ function TripCard({ trip, today }: { trip: TripWithTotals; today: DateKey }) {
   return (
     <Card onPress={() => openTrip(trip.id)} style={styles.card} accessibilityLabel={`${trip.name}, ${details}`}>
       <View style={styles.header}>
-        {trip.cover_uri ? (
-          <Image source={{ uri: trip.cover_uri }} style={[styles.cover, { backgroundColor: colors.surfaceAlt }]} contentFit="cover" />
-        ) : (
-          <EmojiBadge emoji={trip.icon} color={color} size={48} />
-        )}
+        <StoredImage uri={trip.cover_uri} style={styles.cover} fallback={<EmojiBadge emoji={trip.icon} color={color} size={48} />} />
         <View style={styles.flex}>
           <AppText variant="bodyStrong" numberOfLines={1}>
             {trip.name}

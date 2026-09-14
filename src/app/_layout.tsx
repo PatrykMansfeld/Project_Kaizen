@@ -5,6 +5,7 @@ import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
 import { SQLiteProvider } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
 
+import { headerOptions } from '@/components/screen';
 import { migrateDb } from '@/db/migrations';
 import { AppLock } from '@/features/lock/app-lock';
 import { ModulePreferencesProvider } from '@/features/modules/preferences';
@@ -56,11 +57,7 @@ function App() {
         {/* Punkty (Postęp) są liczone raz dla całej aplikacji; „+XP” i gratulacje rysują się nad ekranami. */}
         <XpProvider>
           {/* Zakładki są pierwszym ekranem stosu; ekrany szczegółów (edycja itp.) będą otwierane nad nimi. */}
-          <Stack
-            screenOptions={{
-              // Tytuły ekranów krojem stylu (vaporwave, zen); w stylu klasycznym systemowe.
-              headerTitleStyle: theme.display ? { fontFamily: theme.display.family, fontSize: theme.display.headerSize } : undefined,
-            }}>
+          <Stack screenOptions={headerOptions(theme)}>
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           </Stack>
         </XpProvider>

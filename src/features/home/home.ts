@@ -1,6 +1,6 @@
 import type { Meter, MeterReading } from '@/db/home';
 import { diffDays, type DateKey } from '@/lib/dates';
-import { formatDecimal, plural } from '@/lib/format';
+import { FORMS, formatDecimal, plural } from '@/lib/format';
 
 export const HOME_ICONS = ['🧹', '🧺', '🧽', '🗑️', '🪴', '🛏️', '🚿', '💧', '🔥', '🧊', '🔋', '🪟', '🔧', '🐶', '🚗', '🌡️'];
 
@@ -19,7 +19,7 @@ export const CHORE_INTERVALS = [
 
 /** „co 90 dni” albo nazwa z CHORE_INTERVALS. */
 export function intervalLabel(days: number) {
-  return CHORE_INTERVALS.find((option) => option.days === days)?.label.toLowerCase() ?? `co ${plural(days, ['dzień', 'dni', 'dni'])}`;
+  return CHORE_INTERVALS.find((option) => option.days === days)?.label.toLowerCase() ?? `co ${plural(days, FORMS.day)}`;
 }
 
 /** Dni do końca gwarancji przy których pokazujemy ostrzeżenie. */
@@ -28,10 +28,10 @@ export const WARRANTY_WARNING_DAYS = 30;
 /** „wygasa za 20 dni”, „ważna jeszcze 400 dni”, „wygasła 3 dni temu”. */
 export function warrantyLabel(expiresOn: DateKey, today: DateKey) {
   const days = diffDays(today, expiresOn);
-  if (days < 0) return `wygasła ${plural(-days, ['dzień', 'dni', 'dni'])} temu`;
+  if (days < 0) return `wygasła ${plural(-days, FORMS.day)} temu`;
   if (days === 0) return 'wygasa dziś';
-  if (days <= WARRANTY_WARNING_DAYS) return `wygasa za ${plural(days, ['dzień', 'dni', 'dni'])}`;
-  return `ważna jeszcze ${plural(days, ['dzień', 'dni', 'dni'])}`;
+  if (days <= WARRANTY_WARNING_DAYS) return `wygasa za ${plural(days, FORMS.day)}`;
+  return `ważna jeszcze ${plural(days, FORMS.day)}`;
 }
 
 export type MeterUsage = { amount: number; days: number; perDay: number | null };
@@ -50,7 +50,7 @@ export function meterUsage(
 /** „+123 kWh w 30 dni (4,1 kWh dziennie)”. */
 export function formatUsage(usage: MeterUsage, unit: Meter['unit']) {
   const perDay = usage.perDay !== null ? ` (${formatDecimal(usage.perDay, 1)} ${unit} dziennie)` : '';
-  return `${usage.amount >= 0 ? '+' : ''}${formatDecimal(usage.amount, 2)} ${unit} w ${plural(usage.days, ['dzień', 'dni', 'dni'])}${perDay}`;
+  return `${usage.amount >= 0 ? '+' : ''}${formatDecimal(usage.amount, 2)} ${unit} w ${plural(usage.days, FORMS.day)}${perDay}`;
 }
 
 /** Zużycie w kolejnych okresach między odczytami (od najstarszego) — do historii licznika. */

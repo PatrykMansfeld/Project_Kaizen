@@ -542,6 +542,47 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX dreams_done ON dreams (done_on);
   `,
+  `
+  -- Kultura: ocena w skali 1–10 zamiast 1–5 gwiazdek (CHECK wymaga przebudowy tabeli). Stare oceny ×2.
+  CREATE TABLE media_items_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK (kind IN ('movie', 'series', 'anime', 'book', 'manga', 'game')),
+    title TEXT NOT NULL,
+    creator TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK (status IN ('planned', 'active', 'done', 'dropped')),
+    rating INTEGER CHECK (rating BETWEEN 1 AND 10),
+    platform TEXT NOT NULL DEFAULT '',
+    release_year INTEGER CHECK (release_year BETWEEN 1000 AND 2200),
+    season INTEGER CHECK (season >= 1),
+    episode INTEGER CHECK (episode >= 0),
+    total INTEGER CHECK (total > 0),
+    started_on TEXT,
+    finished_on TEXT,
+    note TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+    cover_uri TEXT
+  );
+  INSERT INTO media_items_new (id, kind, title, creator, status, rating, platform, release_year, season, episode, total,
+      started_on, finished_on, note, created_at, cover_uri)
+    SELECT id, kind, title, creator, status, rating * 2, platform, release_year, season, episode, total,
+      started_on, finished_on, note, created_at, cover_uri
+    FROM media_items;
+  DROP TABLE media_items;
+  ALTER TABLE media_items_new RENAME TO media_items;
+  CREATE INDEX media_items_status ON media_items (status, finished_on);
+  `,
+  `
+  -- Kultura: czas (długość filmu albo odcinka, obejrzane odcinki łącznie, czas gry), gatunki („Sci-fi, Dramat”)
+  -- i ranking z porównań parami (Elo; NULL = jeszcze nieporównywany, liczy się z oceny).
+  ALTER TABLE media_items ADD COLUMN length_min INTEGER CHECK (length_min > 0);
+  ALTER TABLE media_items ADD COLUMN episodes_seen INTEGER CHECK (episodes_seen >= 0);
+  ALTER TABLE media_items ADD COLUMN played_min INTEGER CHECK (played_min >= 0);
+  ALTER TABLE media_items ADD COLUMN genres TEXT NOT NULL DEFAULT '';
+  ALTER TABLE media_items ADD COLUMN elo REAL;
+  ALTER TABLE media_items ADD COLUMN duels INTEGER NOT NULL DEFAULT 0;
+  -- Obejrzanych odcinków nie liczyliśmy — na start przyjmujemy numer ostatniego odcinka.
+  UPDATE media_items SET episodes_seen = episode WHERE kind IN ('series', 'anime') AND episode IS NOT NULL;
+  `,
 ];
 
 export async function migrateDb(db: SQLiteDatabase) {

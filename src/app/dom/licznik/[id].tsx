@@ -7,7 +7,7 @@ import { AppText } from '@/components/app-text';
 import { BottomSheet, SheetActions } from '@/components/bottom-sheet';
 import { Button, IconButton } from '@/components/button';
 import { Card } from '@/components/card';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { EmptyLine } from '@/components/empty-state';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
@@ -17,7 +17,7 @@ import { useQuery } from '@/db/use-query';
 import { formatUsage, readingDeltas } from '@/features/home/home';
 import { LineChart } from '@/features/stats/line-chart';
 import { confirmDelete } from '@/lib/alerts';
-import { addDays, diffDays, formatDayRelative, type DateKey } from '@/lib/dates';
+import { diffDays, formatDayRelative, type DateKey } from '@/lib/dates';
 import { formatDecimal, parseDecimal } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/use-theme';
@@ -159,10 +159,7 @@ function ReadingForm({ unit, lastValue, today, onSave, onClose }: Omit<ReadingSh
         onChange={(day) => day && setDate(day)}
         today={today}
         pickerTitle="Data odczytu"
-        presets={[
-          { label: 'Dziś', date: today },
-          { label: 'Wczoraj', date: addDays(today, -1) },
-        ]}
+        presets={recentDayPresets(today)}
       />
       <SheetActions>
         <Button label="Anuluj" variant="secondary" onPress={onClose} />

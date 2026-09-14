@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { HeaderTextButton } from '@/components/header';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
@@ -25,7 +25,9 @@ import { moneyInputText, parseMoney } from '@/features/finance/money';
 import { useModuleVisible } from '@/features/modules/preferences';
 import { tripOnDate, tripOptionsForDate } from '@/features/trips/trips';
 import { confirmDelete } from '@/lib/alerts';
-import { addDays, isDateKey, type DateKey } from '@/lib/dates';
+import { isDateKey, type DateKey } from '@/lib/dates';
+import { parseWholeNumber } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 
 type Form = { type: TransactionType; amount: string; categoryId: number | null; date: DateKey; note: string; tripId: number | null };
@@ -38,7 +40,7 @@ export default function TransactionEditScreen() {
   const params = useLocalSearchParams<{ id: string; type?: string; date?: string; trip?: string }>();
   const isNew = params.id === 'nowa';
   const transactionId = Number(params.id);
-  const tripParam = params.trip && /^\d+$/.test(params.trip) ? Number(params.trip) : null;
+  const tripParam = parseWholeNumber(params.trip);
 
   const db = useSQLiteContext();
   const today = useToday();
@@ -54,7 +56,6 @@ export default function TransactionEditScreen() {
     note: '',
     tripId: tripParam,
   });
-  const [loaded, setLoaded] = useState(isNew);
   const tripTouched = useRef(tripParam !== null || !isNew);
 
   // Nowy wydatek w trakcie wyjazdu — domyślnie należy do tej podróży.
@@ -65,24 +66,16 @@ export default function TransactionEditScreen() {
     if (ongoing) setForm((current) => ({ ...current, tripId: ongoing.id }));
   }, [tripsLoaded, trips, form.date, tripsVisible]);
 
-  useEffect(() => {
-    if (isNew) return;
-    getTransaction(db, transactionId).then((transaction) => {
-      if (!transaction) {
-        router.back();
-        return;
-      }
-      setForm({
-        type: transaction.type,
-        amount: moneyInputText(transaction.amount),
-        categoryId: transaction.category_id,
-        date: transaction.date,
-        note: transaction.note,
-        tripId: transaction.trip_id,
-      });
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : transactionId, () => getTransaction(db, transactionId), (transaction) => {
+    setForm({
+      type: transaction.type,
+      amount: moneyInputText(transaction.amount),
+      categoryId: transaction.category_id,
+      date: transaction.date,
+      note: transaction.note,
+      tripId: transaction.trip_id,
     });
-  }, [db, isNew, transactionId]);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const amount = parseMoney(form.amount);
@@ -173,10 +166,7 @@ export default function TransactionEditScreen() {
               onChange={(date) => date && update({ date })}
               today={today}
               pickerTitle="Data"
-              presets={[
-                { label: 'Dziś', date: today },
-                { label: 'Wczoraj', date: addDays(today, -1) },
-              ]}
+              presets={recentDayPresets(today)}
             />
           </Section>
 

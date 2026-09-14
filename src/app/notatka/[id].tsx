@@ -34,6 +34,7 @@ import { alertPermissionBlocked, confirmDelete } from '@/lib/alerts';
 import { formatTimestamp } from '@/lib/dates';
 import { deleteImageFiles, pickImages } from '@/lib/images';
 import { useAutosave } from '@/lib/use-autosave';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
@@ -63,7 +64,6 @@ export default function NoteEditorScreen() {
   const [tagIds, setTagIds] = useState<number[]>([]);
   const [tagsOpen, setTagsOpen] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(isNew);
   const [preview, setPreview] = useState(false);
   const [selection, setSelection] = useState<Selection>({ start: 0, end: 0 });
   /** Pozycja kursora ustawiana po użyciu paska narzędzi (jednorazowo). */
@@ -105,13 +105,13 @@ export default function NoteEditorScreen() {
     setUpdatedAt(new Date().toISOString());
   });
 
-  useEffect(() => {
-    if (isNew) return;
-    Promise.all([getNote(db, Number(id)), getNoteTagIds(db, Number(id))]).then(([note, noteTagIds]) => {
-      if (!note) {
-        router.back();
-        return;
-      }
+  const loaded = useEditRecord(
+    isNew ? null : id,
+    async () => {
+      const [note, noteTagIds] = await Promise.all([getNote(db, Number(id)), getNoteTagIds(db, Number(id))]);
+      return note && { note, noteTagIds };
+    },
+    ({ note, noteTagIds }) => {
       const loadedContent = { title: note.title, body: note.body };
       latest.current = loadedContent;
       pinnedRef.current = note.pinned === 1;
@@ -122,9 +122,8 @@ export default function NoteEditorScreen() {
       setUpdatedAt(note.updated_at);
       // Istniejąca notatka z treścią otwiera się w podglądzie (formatowanie, klikalne checklisty).
       setPreview(note.body.trim().length > 0);
-      setLoaded(true);
-    });
-  }, [db, id, isNew]);
+    },
+  );
 
   // Wyjście z edytora: dokończ zapis i usuń notatkę, jeśli została pusta (bez tekstu i zdjęć).
   useEffect(

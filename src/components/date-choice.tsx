@@ -2,9 +2,17 @@ import { useState } from 'react';
 
 import { Chip, ChipRow } from '@/components/chip';
 import { DatePickerSheet } from '@/components/date-picker-sheet';
-import { formatDayShort, type DateKey } from '@/lib/dates';
+import { addDays, formatDayShort, type DateKey } from '@/lib/dates';
 
 export type DatePreset = { label: string; date: DateKey | null };
+
+/** Najczęstsze szybkie opcje: „Dziś” i „Wczoraj”. */
+export function recentDayPresets(today: DateKey): DatePreset[] {
+  return [
+    { label: 'Dziś', date: today },
+    { label: 'Wczoraj', date: addDays(today, -1) },
+  ];
+}
 
 type Props = {
   value: DateKey | null;

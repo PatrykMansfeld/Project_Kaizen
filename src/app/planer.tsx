@@ -1,16 +1,16 @@
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet, SheetActions } from '@/components/bottom-sheet';
+import { BottomSheet, SheetActions, SheetTitle } from '@/components/bottom-sheet';
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
 import { PeriodNavigator } from '@/components/period-navigator';
 import { PromptSheet } from '@/components/prompt-sheet';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
+import { ShowAllLink } from '@/components/text-link';
 import { TimePickerSheet } from '@/components/time-picker-sheet';
 import {
   TASKS_BETWEEN_SQL,
@@ -25,7 +25,7 @@ import { useQuery } from '@/db/use-query';
 import { useTags } from '@/features/tags/tags';
 import { TaskRow } from '@/features/tasks/task-row';
 import { groupBy } from '@/lib/collections';
-import { WEEKDAYS, WEEKDAYS_SHORT, addDays, formatDateRange, fromDateKey, startOfWeek, weekOf, type DateKey } from '@/lib/dates';
+import { WEEKDAYS, WEEKDAYS_SHORT, addDays, formatDateRange, formatDayMonth, startOfWeek, weekOf, type DateKey } from '@/lib/dates';
 import { capitalize, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
@@ -36,11 +36,6 @@ const UNDATED_PREVIEW = 5;
 
 /** „Zadanie na środę” — dni tygodnia w bierniku. */
 const WEEKDAYS_ACCUSATIVE = ['poniedziałek', 'wtorek', 'środę', 'czwartek', 'piątek', 'sobotę', 'niedzielę'];
-
-function dayMonth(day: DateKey) {
-  const date = fromDateKey(day);
-  return `${date.getDate()}.${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
 
 /**
  * Planer tygodnia: zadania rozłożone na dni (z godzinami), zaległe i te bez terminu. Stuknięcie w zadanie
@@ -109,7 +104,7 @@ export default function PlannerScreen() {
         return (
           <Section
             key={day}
-            title={`${capitalize(WEEKDAYS[index])} ${dayMonth(day)}${isToday ? ' · dziś' : ''}`}
+            title={`${capitalize(WEEKDAYS[index])} ${formatDayMonth(day)}${isToday ? ' · dziś' : ''}`}
             icon={isToday ? 'today' : undefined}
             color={isToday ? colors.accent : undefined}
             meta={tasks.length ? `${open} / ${tasks.length}` : undefined}
@@ -133,11 +128,7 @@ export default function PlannerScreen() {
         ) : null}
         {(allUndated ? undated : undated.slice(0, UNDATED_PREVIEW)).map(row)}
         {undated.length > UNDATED_PREVIEW ? (
-          <Pressable onPress={() => setAllUndated(!allUndated)} hitSlop={8} accessibilityRole="button">
-            <AppText variant="caption" tone="accent">
-              {allUndated ? 'Pokaż mniej' : `Pokaż wszystkie (${undated.length})`}
-            </AppText>
-          </Pressable>
+          <ShowAllLink expanded={allUndated} total={undated.length} onPress={() => setAllUndated(!allUndated)} />
         ) : null}
       </Section>
 
@@ -175,22 +166,17 @@ function PlanContent({ task, days, today, onClose }: { task: Task; days: DateKey
 
   return (
     <>
-      <View style={styles.sheetTitle}>
-        <AppText variant="heading" numberOfLines={2}>
-          {task.title}
-        </AppText>
-        <AppText tone="textSecondary">Na kiedy?</AppText>
-      </View>
+      <SheetTitle title={task.title} subtitle="Na kiedy?" />
       <ChipRow>
         {days.map((option, index) => (
           <Chip
             key={option}
-            label={`${WEEKDAYS_SHORT[index]} ${dayMonth(option)}${option === today ? ' · dziś' : ''}`}
+            label={`${WEEKDAYS_SHORT[index]} ${formatDayMonth(option)}${option === today ? ' · dziś' : ''}`}
             selected={day === option}
             onPress={() => setDay(option)}
           />
         ))}
-        <Chip label={`Pn ${dayMonth(nextMonday)}`} icon="arrow_forward" selected={day === nextMonday} onPress={() => setDay(nextMonday)} />
+        <Chip label={`Pn ${formatDayMonth(nextMonday)}`} icon="arrow_forward" selected={day === nextMonday} onPress={() => setDay(nextMonday)} />
         <Chip label="Bez terminu" selected={day === null} onPress={() => setDay(null)} />
       </ChipRow>
       {day ? (
@@ -212,7 +198,3 @@ function PlanContent({ task, days, today, onClose }: { task: Task; days: DateKey
     </>
   );
 }
-
-const styles = StyleSheet.create({
-  sheetTitle: { gap: spacing.xs },
-});

@@ -20,7 +20,8 @@ export function Card({ children, onPress, variant = 'card', style, accessibility
   const cardStyle = [
     variant === 'row' ? styles.row : styles.card,
     { backgroundColor: colors.surface },
-    cardBorderWidth > 0 && { borderWidth: cardBorderWidth, borderColor: colors.cardBorder },
+    // Ramka zawsze podana (w stylu klasycznym 0), bo usunięcie jej na Androidzie potrafi schować treść karty.
+    { borderWidth: cardBorderWidth, borderColor: cardBorderWidth > 0 ? colors.cardBorder : 'transparent' },
     style,
   ];
 

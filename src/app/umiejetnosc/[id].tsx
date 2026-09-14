@@ -14,7 +14,7 @@ import { SessionSheet } from '@/features/skills/session-sheet';
 import { formatHours, weeklyMinutes, weeksToGoal } from '@/features/skills/skills';
 import { ColumnChart, Meter, StatRow, StatTile } from '@/features/stats/charts';
 import { formatDayRelative } from '@/lib/dates';
-import { formatDuration, plural } from '@/lib/format';
+import { FORMS, formatDuration, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { paletteColor } from '@/theme/palette';
 import { useTheme } from '@/theme/use-theme';
@@ -73,7 +73,7 @@ export default function SkillScreen() {
               {total >= skill.goal_hours * 60
                 ? '🏆 Cel osiągnięty!'
                 : toGoal !== null
-                  ? `Przy obecnym tempie cel osiągniesz za ok. ${plural(toGoal, ['tydzień', 'tygodnie', 'tygodni'])}.`
+                  ? `Przy obecnym tempie cel osiągniesz za ok. ${plural(toGoal, FORMS.week)}.`
                   : 'Zapisuj sesje, a policzę, kiedy osiągniesz cel.'}
             </AppText>
           </Card>

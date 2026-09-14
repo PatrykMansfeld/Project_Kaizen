@@ -1,5 +1,5 @@
 import { diffDays, type DateKey } from './dates';
-import { plural } from './format';
+import { FORMS, plural } from './format';
 
 export type DueStatus = 'overdue' | 'today' | 'soon' | 'later';
 
@@ -16,6 +16,6 @@ export function dueLabel(due: DateKey, today: DateKey) {
   const days = diffDays(today, due);
   if (days === 0) return 'Dziś';
   if (days === 1) return 'Jutro';
-  if (days < 0) return `${plural(-days, ['dzień', 'dni', 'dni'])} po terminie`;
-  return `za ${plural(days, ['dzień', 'dni', 'dni'])}`;
+  if (days < 0) return `${plural(-days, FORMS.day)} po terminie`;
+  return `za ${plural(days, FORMS.day)}`;
 }

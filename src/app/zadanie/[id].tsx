@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
@@ -34,7 +34,9 @@ import { priorityColor } from '@/features/tasks/priority';
 import { SubtaskList, newSubtaskKey, type SubtaskDraft } from '@/features/tasks/subtask-list';
 import { confirmDelete } from '@/lib/alerts';
 import { addDays, isDateKey, type DateKey } from '@/lib/dates';
+import { parseWholeNumber } from '@/lib/format';
 import { useAutosave } from '@/lib/use-autosave';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/use-theme';
 
@@ -67,38 +69,38 @@ export default function TaskEditScreen() {
     due_date: isDateKey(initialDue) ? initialDue : null,
     due_time: null,
     repeat: null,
-    project_id: initialProject && /^\d+$/.test(initialProject) ? Number(initialProject) : null,
+    project_id: parseWholeNumber(initialProject),
   });
   const [subtasks, setSubtasks] = useState<SubtaskDraft[]>([]);
   const [tagIds, setTagIds] = useState<number[]>([]);
-  const [loaded, setLoaded] = useState(isNew);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
   const [projectNameOpen, setProjectNameOpen] = useState(false);
   const { rows: projects } = useQuery<Project>(PROJECTS_SQL, [], ['projects', 'tasks']);
 
-  useEffect(() => {
-    if (isNew) return;
-    Promise.all([getTask(db, taskId), getSubtasks(db, taskId), getTaskTagIds(db, taskId)]).then(
-      ([task, subtaskRows, taskTagIds]) => {
-        if (!task) {
-          router.back();
-          return;
-        }
-        setForm({
-          title: task.title,
-          notes: task.notes,
-          priority: task.priority,
-          due_date: task.due_date,
-          due_time: task.due_time,
-          repeat: task.repeat,
-          project_id: task.project_id,
-        });
-        setSubtasks(subtaskRows.map((row) => ({ key: newSubtaskKey(), title: row.title, done: row.done === 1 })));
-        setTagIds(taskTagIds);
-        setLoaded(true);
-      },
-    );
-  }, [db, isNew, taskId]);
+  const loaded = useEditRecord(
+    isNew ? null : taskId,
+    async () => {
+      const [task, subtaskRows, taskTagIds] = await Promise.all([
+        getTask(db, taskId),
+        getSubtasks(db, taskId),
+        getTaskTagIds(db, taskId),
+      ]);
+      return task && { task, subtaskRows, taskTagIds };
+    },
+    ({ task, subtaskRows, taskTagIds }) => {
+      setForm({
+        title: task.title,
+        notes: task.notes,
+        priority: task.priority,
+        due_date: task.due_date,
+        due_time: task.due_time,
+        repeat: task.repeat,
+        project_id: task.project_id,
+      });
+      setSubtasks(subtaskRows.map((row) => ({ key: newSubtaskKey(), title: row.title, done: row.done === 1 })));
+      setTagIds(taskTagIds);
+    },
+  );
 
   // W istniejącym zadaniu checklista zapisuje się sama (odhaczanie kroków nie wymaga „Zapisz”).
   const { schedule: scheduleSubtasks, flush: flushSubtasks } = useAutosave<SubtaskDraft[]>(async (items) => {

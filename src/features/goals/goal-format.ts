@@ -2,7 +2,7 @@ import type { IconName } from '@/components/icon';
 import type { Goal, GoalKind } from '@/db/goals';
 import { MEASUREMENT_TYPES } from '@/db/measurements';
 import { diffDays, type DateKey } from '@/lib/dates';
-import { formatDecimal, formatDuration, plural } from '@/lib/format';
+import { FORMS, formatDecimal, formatDuration, plural } from '@/lib/format';
 
 export const GOAL_KINDS: Record<GoalKind, { label: string; icon: IconName; hint: string }> = {
   distance: { label: 'Dystans', icon: 'social_distance', hint: 'Suma kilometrów z treningów' },
@@ -23,11 +23,11 @@ export function formatGoalValue(goal: GoalFields, value: number) {
     case 'distance':
       return `${formatDecimal(value, 1)} km`;
     case 'workouts':
-      return plural(Math.round(value), ['trening', 'treningi', 'treningów']);
+      return plural(Math.round(value), FORMS.workout);
     case 'minutes':
       return formatDuration(Math.round(value));
     case 'habit':
-      return plural(Math.round(value), ['dzień', 'dni', 'dni']);
+      return plural(Math.round(value), FORMS.day);
     case 'measurement':
       return `${formatDecimal(value, 1)} ${goal.measurement_type ? MEASUREMENT_TYPES[goal.measurement_type].unit : ''}`;
     case 'manual':
@@ -60,7 +60,7 @@ export function goalPace(goal: GoalFields & Pick<Goal, 'end_date'>, value: numbe
   const daysLeft = diffDays(today, goal.end_date) + 1;
   const remaining = goal.target - value;
   if (goal.kind === 'habit') {
-    return `jeszcze ${plural(Math.ceil(remaining), ['dzień', 'dni', 'dni'])} · zostało ${plural(daysLeft, ['dzień', 'dni', 'dni'])}`;
+    return `jeszcze ${plural(Math.ceil(remaining), FORMS.day)} · zostało ${plural(daysLeft, FORMS.day)}`;
   }
   if (daysLeft < 7) return `~${formatGoalValue(goal, remaining / daysLeft)} dziennie`;
   return `~${formatGoalValue(goal, remaining / (daysLeft / 7))} tygodniowo`;

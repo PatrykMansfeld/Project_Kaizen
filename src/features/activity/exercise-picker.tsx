@@ -1,10 +1,9 @@
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet } from '@/components/bottom-sheet';
-import { IconButton } from '@/components/button';
+import { BottomSheet, SheetTitle } from '@/components/bottom-sheet';
 import { Icon } from '@/components/icon';
 import { SearchField } from '@/components/search-field';
 import { EXERCISES_SQL, createExercise, type Exercise } from '@/db/exercises';
@@ -53,12 +52,7 @@ function PickerContent({ excludeIds, onPick, onClose }: Omit<Props, 'visible'>) 
 
   return (
     <>
-      <View style={styles.header}>
-        <AppText variant="heading" style={styles.flex}>
-          Dodaj ćwiczenie
-        </AppText>
-        <IconButton icon="close" accessibilityLabel="Zamknij" onPress={onClose} />
-      </View>
+      <SheetTitle title="Dodaj ćwiczenie" onClose={onClose} />
       <SearchField value={search} onChangeText={setSearch} placeholder="Szukaj lub wpisz nowe" />
 
       <FlatList
@@ -87,7 +81,6 @@ function PickerContent({ excludeIds, onPick, onClose }: Omit<Props, 'visible'>) 
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center' },
   flex: { flex: 1 },
   row: {
     flexDirection: 'row',

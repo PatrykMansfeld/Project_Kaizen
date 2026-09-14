@@ -1,7 +1,7 @@
 import { isScheduled } from '@/features/habits/streak';
 import { MOODS } from '@/features/journal/moods';
 import { MONTHS, type DateKey } from '@/lib/dates';
-import { formatDuration, plural } from '@/lib/format';
+import { FORMS, formatDuration, plural } from '@/lib/format';
 
 /** Co pokazuje siatka roku. */
 export type PixelMetric = 'mood' | 'sleep' | 'workouts' | `habit:${number}`;
@@ -68,7 +68,7 @@ export function pixelReadout(metric: PixelMetric, day: DateKey, data: PixelData)
   if (metric === 'workouts') {
     const entry = data.workouts.get(day);
     if (!entry) return 'Bez treningu';
-    const count = plural(entry.count, ['trening', 'treningi', 'treningów']);
+    const count = plural(entry.count, FORMS.workout);
     return entry.minutes ? `${count} · ${formatDuration(entry.minutes)}` : count;
   }
   const habit = data.habit;

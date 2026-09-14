@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -24,6 +24,8 @@ import { requestPermissionOrWarn } from '@/features/reminders/permission';
 import { EXPO_GO_NOTICE, notificationsSupported } from '@/features/reminders/reminders';
 import { confirmDelete } from '@/lib/alerts';
 import { WEEKDAYS_SHORT } from '@/lib/dates';
+import { parseWholeNumber } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { PALETTE, PALETTE_KEYS, paletteColor, type PaletteKey } from '@/theme/palette';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -57,36 +59,27 @@ export default function HabitEditScreen() {
   // Cel nawyku ilościowego jako tekst z pola (np. „10000”).
   const [amountText, setAmountText] = useState('');
   const [archived, setArchived] = useState(false);
-  const [loaded, setLoaded] = useState(isNew);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (isNew) return;
-    getHabit(db, habitId).then((habit) => {
-      if (!habit) {
-        router.back();
-        return;
-      }
-      setForm({
-        name: habit.name,
-        icon: habit.icon,
-        color: habit.color,
-        target_per_day: habit.target_per_day,
-        unit: habit.unit,
-        reminder_time: habit.reminder_time,
-        days_mask: habit.days_mask,
-        weekly_target: habit.weekly_target,
-        attribute: habit.attribute,
-      });
-      if (habit.unit) setAmountText(String(habit.target_per_day));
-      setArchived(habit.archived === 1);
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : habitId, () => getHabit(db, habitId), (habit) => {
+    setForm({
+      name: habit.name,
+      icon: habit.icon,
+      color: habit.color,
+      target_per_day: habit.target_per_day,
+      unit: habit.unit,
+      reminder_time: habit.reminder_time,
+      days_mask: habit.days_mask,
+      weekly_target: habit.weekly_target,
+      attribute: habit.attribute,
     });
-  }, [db, isNew, habitId]);
+    if (habit.unit) setAmountText(String(habit.target_per_day));
+    setArchived(habit.archived === 1);
+  });
 
   const update = (patch: Partial<HabitInput>) => setForm((current) => ({ ...current, ...patch }));
   const isAmount = form.unit !== null;
-  const amountTarget = /^\d+$/.test(amountText) ? Number(amountText) : 0;
+  const amountTarget = parseWholeNumber(amountText) ?? 0;
   const amountValid = !isAmount || (amountTarget >= 1 && amountTarget <= 1_000_000 && form.unit!.trim().length > 0);
   const canSave = loaded && form.name.trim().length > 0 && amountValid;
 

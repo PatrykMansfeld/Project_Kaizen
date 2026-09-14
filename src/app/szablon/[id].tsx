@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
@@ -19,6 +19,7 @@ import {
 } from '@/features/activity/exercise-editor';
 import { ExercisePicker } from '@/features/activity/exercise-picker';
 import { confirmDelete } from '@/lib/alerts';
+import { useEditRecord } from '@/lib/use-edit-record';
 
 /** Nowy szablon: /szablon/nowy, edycja: /szablon/3. */
 export default function TemplateEditScreen() {
@@ -29,21 +30,19 @@ export default function TemplateEditScreen() {
   const db = useSQLiteContext();
   const [name, setName] = useState('');
   const [exercises, setExercises] = useState<ExerciseDraft[]>([]);
-  const [loaded, setLoaded] = useState(isNew);
   const [pickerOpen, setPickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (isNew) return;
-    Promise.all([getTemplate(db, templateId), getTemplateSets(db, templateId)]).then(([template, sets]) => {
-      if (!template) {
-        router.back();
-        return;
-      }
+  const loaded = useEditRecord(
+    isNew ? null : templateId,
+    async () => {
+      const [template, sets] = await Promise.all([getTemplate(db, templateId), getTemplateSets(db, templateId)]);
+      return template && { template, sets };
+    },
+    ({ template, sets }) => {
       setName(template.name);
       setExercises(draftsFromRows(sets));
-      setLoaded(true);
-    });
-  }, [db, isNew, templateId]);
+    },
+  );
 
   const parsed = parseDrafts(exercises);
   const canSave = loaded && name.trim().length > 0 && parsed !== null && parsed.length > 0;

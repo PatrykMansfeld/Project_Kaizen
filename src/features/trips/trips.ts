@@ -1,6 +1,6 @@
 import type { NewTripItem, Trip, TripItem, TripWithTotals } from '@/db/trips';
 import { addDays, diffDays, type DateKey } from '@/lib/dates';
-import { plural } from '@/lib/format';
+import { FORMS, plural } from '@/lib/format';
 import { normalizeForSearch } from '@/lib/search';
 
 export const TRIP_ICONS = ['✈️', '🏖️', '⛰️', '🏙️', '🚗', '🚆', '⛺', '🎿', '🚢', '🏝️', '🗺️', '🏰', '🍷', '🎒', '🚲', '🌋'];
@@ -28,12 +28,12 @@ export function tripStatusLabel(trip: TripDates, today: DateKey) {
   switch (tripPhase(trip, today)) {
     case 'upcoming': {
       const days = diffDays(today, trip.start_date);
-      return days === 1 ? 'Jutro wyjazd' : `za ${plural(days, ['dzień', 'dni', 'dni'])}`;
+      return days === 1 ? 'Jutro wyjazd' : `za ${plural(days, FORMS.day)}`;
     }
     case 'ongoing':
       return `Dzień ${diffDays(trip.start_date, today) + 1} z ${tripLength(trip)}`;
     case 'past':
-      return plural(tripLength(trip), ['dzień', 'dni', 'dni']);
+      return plural(tripLength(trip), FORMS.day);
   }
 }
 

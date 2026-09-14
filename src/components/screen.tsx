@@ -7,7 +7,7 @@ import { AppText } from '@/components/app-text';
 import { SakuraBlossom, SakuraBranch, TerminalCursor, TerminalPrompt, TerminalRule } from '@/components/style-decor';
 import { VaporGrid, VaporSun } from '@/components/vapor-decor';
 import { ZenBrush, ZenSeal } from '@/components/zen-decor';
-import { spacing, type ThemeStyle } from '@/theme/theme';
+import { SYSTEM_FONT, spacing, type Theme, type ThemeStyle } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 /**
@@ -73,7 +73,10 @@ export function Screen({ title, subtitle, headerRight, children }: Props) {
               {subtitle}
             </AppText>
           ) : null}
-          <View style={styles.content}>{children}</View>
+          {/* Po zmianie stylu treść powstaje od nowa — Android potrafi nie przerysować starych widoków. */}
+          <View key={style} style={styles.content}>
+            {children}
+          </View>
         </View>
       </>
     );
@@ -98,7 +101,9 @@ export function Screen({ title, subtitle, headerRight, children }: Props) {
         {headerRight}
       </View>
       {decor ? <decor.below /> : null}
-      <View style={[styles.content, { backgroundColor: colors.background }]}>{children}</View>
+      <View key={style} style={[styles.content, { backgroundColor: colors.background }]}>
+        {children}
+      </View>
     </SafeAreaView>
   );
 }
@@ -116,7 +121,7 @@ type ScrollScreenProps = {
 /** Ekran z przewijaną treścią i marginesami — jako ekran stosu albo (w TabScreenMode) jako zakładka. */
 export function ScrollScreen({ title, headerRight, children, gap = spacing.xl, contentStyle }: ScrollScreenProps) {
   const mode = useContext(ScreenModeContext);
-  const { colors } = useTheme();
+  const { colors, style } = useTheme();
   const insets = useSafeAreaInsets();
 
   if (mode === 'tab') {
@@ -135,6 +140,7 @@ export function ScrollScreen({ title, headerRight, children, gap = spacing.xl, c
     <>
       <StackHeader title={title} headerRight={headerRight} />
       <ScrollView
+        key={style}
         keyboardShouldPersistTaps="handled"
         style={{ backgroundColor: colors.background }}
         contentContainerStyle={[styles.scrollContent, { gap, paddingBottom: insets.bottom + spacing.xl }, contentStyle]}>
@@ -147,8 +153,24 @@ export function ScrollScreen({ title, headerRight, children, gap = spacing.xl, c
 /** Tytuł i przyciski nagłówka stosu (dla ekranów z własną listą zamiast ScrollScreen). W zakładce nic nie robi. */
 export function StackHeader({ title, headerRight }: { title: string; headerRight?: ReactNode }) {
   const mode = useContext(ScreenModeContext);
+  const theme = useTheme();
   if (mode === 'tab') return null;
-  return <Stack.Screen options={{ title, headerRight: headerRight ? () => headerRight : undefined }} />;
+  // Kolory i krój nagłówka ustawia każdy ekran przy każdym renderze — sam motyw nawigacji nie zawsze
+  // przerysowuje nagłówek już otwartego ekranu po zmianie stylu.
+  return (
+    <Stack.Screen options={{ title, headerRight: headerRight ? () => headerRight : undefined, ...headerOptions(theme) }} />
+  );
+}
+
+/** Wygląd paska nawigacji w danym motywie: tło, kolor strzałki i tytułu, krój tytułu. */
+export function headerOptions(theme: Theme) {
+  return {
+    headerStyle: { backgroundColor: theme.colors.chrome },
+    headerTintColor: theme.colors.text,
+    headerTitleStyle: theme.display
+      ? { fontFamily: theme.display.family, fontSize: theme.display.headerSize, color: theme.colors.text }
+      : { fontFamily: SYSTEM_FONT, color: theme.colors.text },
+  };
 }
 
 /** Tło i marginesy listy (FlatList / SectionList) na ekranie stosu. */

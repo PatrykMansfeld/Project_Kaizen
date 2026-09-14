@@ -7,6 +7,14 @@ export function plural(count: number, [one, few, many]: [string, string, string]
   return `${count} ${word}`;
 }
 
+/** Najczęstsze odmiany do `plural` („1 dzień”, „2 dni”, „5 dni”). */
+export const FORMS: Record<'day' | 'week' | 'workout' | 'task', [string, string, string]> = {
+  day: ['dzień', 'dni', 'dni'],
+  week: ['tydzień', 'tygodnie', 'tygodni'],
+  workout: ['trening', 'treningi', 'treningów'],
+  task: ['zadanie', 'zadania', 'zadań'],
+};
+
 /** 45 → „45 min”, 75 → „1 h 15 min”, 120 → „2 h”. */
 export function formatDuration(minutes: number) {
   if (minutes < 60) return `${minutes} min`;
@@ -22,6 +30,12 @@ export function formatDecimal(value: number, decimals = 2) {
 
 export function formatKm(km: number) {
   return `${formatDecimal(km)} km`;
+}
+
+/** Liczba całkowita ≥ 0 z pola tekstowego („ 12 ” → 12); puste albo cokolwiek innego → null. */
+export function parseWholeNumber(text: string | null | undefined) {
+  const trimmed = (text ?? '').trim();
+  return /^\d+$/.test(trimmed) ? Number(trimmed) : null;
 }
 
 /** Tekst z pola liczbowego („5,2” albo „5.2”) → liczba; pusty → null, niepoprawny → NaN. */

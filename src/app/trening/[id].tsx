@@ -1,18 +1,19 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { HeaderTextButton } from '@/components/header';
 import { Icon } from '@/components/icon';
 import { PromptSheet } from '@/components/prompt-sheet';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
 import { TextField } from '@/components/text-field';
+import { TextLink } from '@/components/text-link';
 import { getLastSet, getWorkoutSets, replaceWorkoutSets, type Exercise } from '@/db/exercises';
 import { TEMPLATES_SQL, createTemplate, getTemplateSets, type WorkoutTemplate } from '@/db/templates';
 import { useQuery } from '@/db/use-query';
@@ -28,8 +29,9 @@ import { ExercisePicker } from '@/features/activity/exercise-picker';
 import { describeBeatenRecords } from '@/features/activity/records';
 import { WORKOUT_TYPES, WORKOUT_TYPE_KEYS, workoutPace, type WorkoutType } from '@/features/activity/workout-types';
 import { confirmDelete } from '@/lib/alerts';
-import { addDays, isDateKey, type DateKey } from '@/lib/dates';
-import { formatDecimal, parseDecimal } from '@/lib/format';
+import { isDateKey, type DateKey } from '@/lib/dates';
+import { formatDecimal, parseDecimal, parseWholeNumber } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -64,18 +66,17 @@ export default function WorkoutEditScreen() {
     note: '',
     exercises: [],
   });
-  const [loaded, setLoaded] = useState(isNew);
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
   const [templateNameOpen, setTemplateNameOpen] = useState(false);
   const { rows: templates } = useQuery<WorkoutTemplate>(TEMPLATES_SQL, [], ['workout_templates', 'template_sets']);
 
-  useEffect(() => {
-    if (isNew) return;
-    Promise.all([getWorkout(db, workoutId), getWorkoutSets(db, workoutId)]).then(([workout, sets]) => {
-      if (!workout) {
-        router.back();
-        return;
-      }
+  const loaded = useEditRecord(
+    isNew ? null : workoutId,
+    async () => {
+      const [workout, sets] = await Promise.all([getWorkout(db, workoutId), getWorkoutSets(db, workoutId)]);
+      return workout && { workout, sets };
+    },
+    ({ workout, sets }) => {
       setForm({
         type: workout.type,
         date: workout.date,
@@ -84,9 +85,8 @@ export default function WorkoutEditScreen() {
         note: workout.note,
         exercises: draftsFromRows(sets),
       });
-      setLoaded(true);
-    });
-  }, [db, isNew, workoutId]);
+    },
+  );
 
   // Szablon podmienia listę ćwiczeń (po potwierdzeniu, jeśli coś już wpisano).
   const applyTemplate = async (templateId: number) => {
@@ -114,7 +114,7 @@ export default function WorkoutEditScreen() {
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
 
   const typeInfo = WORKOUT_TYPES[form.type];
-  const duration = /^\d+$/.test(form.duration.trim()) ? Number(form.duration) : NaN;
+  const duration = parseWholeNumber(form.duration) ?? NaN;
   const distance = typeInfo.hasDistance ? parseDecimal(form.distance) : null;
   const durationValid = duration > 0;
   const distanceValid = distance === null || distance > 0;
@@ -202,10 +202,7 @@ export default function WorkoutEditScreen() {
                 onChange={(date) => date && update({ date })}
                 today={today}
                 pickerTitle="Data treningu"
-                presets={[
-                  { label: 'Dziś', date: today },
-                  { label: 'Wczoraj', date: addDays(today, -1) },
-                ]}
+                presets={recentDayPresets(today)}
               />
             </Section>
 
@@ -256,11 +253,7 @@ export default function WorkoutEditScreen() {
               <Section
                 title="Ćwiczenia"
                 action={
-                  <Pressable onPress={() => router.push('/szablony')} hitSlop={8} accessibilityRole="button">
-                    <AppText variant="caption" tone="accent">
-                      Szablony ›
-                    </AppText>
-                  </Pressable>
+                  <TextLink label="Szablony ›" onPress={() => router.push('/szablony')} />
                 }>
                 {templates.length > 0 ? (
                   <ChipRow>

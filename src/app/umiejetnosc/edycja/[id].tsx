@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/button';
@@ -15,6 +15,7 @@ import { TextField } from '@/components/text-field';
 import { createSkill, deleteSkill, getSkill, updateSkill } from '@/db/skills';
 import { GOAL_OPTIONS, SKILL_ICONS } from '@/features/skills/skills';
 import { confirmDelete } from '@/lib/alerts';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { PALETTE, PALETTE_KEYS, paletteColor, type PaletteKey } from '@/theme/palette';
 import { useTheme } from '@/theme/use-theme';
 
@@ -29,24 +30,15 @@ export default function SkillEditScreen() {
   const db = useSQLiteContext();
   const { dark } = useTheme();
   const [form, setForm] = useState<Form>({ name: '', icon: SKILL_ICONS[0], color: 'indigo', goalHours: 100 });
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getSkill(db, skillId).then((skill) => {
-      if (!skill) {
-        router.back();
-        return;
-      }
-      setForm({
-        name: skill.name,
-        icon: skill.icon,
-        color: (skill.color in PALETTE ? skill.color : 'indigo') as PaletteKey,
-        goalHours: skill.goal_hours,
-      });
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : skillId, () => getSkill(db, skillId), (skill) => {
+    setForm({
+      name: skill.name,
+      icon: skill.icon,
+      color: (skill.color in PALETTE ? skill.color : 'indigo') as PaletteKey,
+      goalHours: skill.goal_hours,
     });
-  }, [db, isNew, skillId]);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const canSave = loaded && form.name.trim().length > 0;

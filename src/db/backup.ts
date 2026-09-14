@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
 import type { SettingKey } from '@/db/settings';
-import { plural } from '@/lib/format';
+import { FORMS, plural } from '@/lib/format';
 
 /**
  * Kopia zapasowa to JSON ze wszystkimi wierszami tabel. Import przepisuje tylko kolumny, które istnieją
@@ -185,11 +185,11 @@ function checkReferences({ data }: Backup) {
 /** „12 zadań · 5 nawyków · 3 notatki · 20 wpisów · 8 treningów” */
 export function backupSummary({ data }: Backup) {
   const parts = [
-    plural(data.tasks?.length ?? 0, ['zadanie', 'zadania', 'zadań']),
+    plural(data.tasks?.length ?? 0, FORMS.task),
     plural(data.habits?.length ?? 0, ['nawyk', 'nawyki', 'nawyków']),
     plural(data.notes?.length ?? 0, ['notatka', 'notatki', 'notatek']),
     plural(data.journal_entries?.length ?? 0, ['wpis w dzienniku', 'wpisy w dzienniku', 'wpisów w dzienniku']),
-    plural(data.workouts?.length ?? 0, ['trening', 'treningi', 'treningów']),
+    plural(data.workouts?.length ?? 0, FORMS.workout),
     plural(data.measurements?.length ?? 0, ['pomiar', 'pomiary', 'pomiarów']),
     plural(data.transactions?.length ?? 0, ['wpis w finansach', 'wpisy w finansach', 'wpisów w finansach']),
   ];
@@ -203,6 +203,13 @@ export function backupSummary({ data }: Backup) {
 const NON_CASCADING_CHILDREN: Partial<Record<BackupTable, BackupTable[]>> = {
   exercises: ['workout_sets', 'template_sets'],
 };
+
+/** Dane, których znaczenie zmieniło się między wersjami schematu — starsze kopie przeliczamy przy wczytywaniu. */
+function upgradeRow(table: BackupTable, row: Row, schemaVersion: number): Row {
+  // v13: ocena w Kulturze ze skali 1–5 na 1–10.
+  if (table === 'media_items' && schemaVersion < 13 && typeof row.rating === 'number') return { ...row, rating: row.rating * 2 };
+  return row;
+}
 
 /** Zastępuje dane tabel obecnych w kopii (w jednej transakcji — przy błędzie nic się nie zmienia). */
 export async function restoreBackup(db: SQLiteDatabase, backup: Backup) {
@@ -228,7 +235,8 @@ export async function restoreBackup(db: SQLiteDatabase, backup: Backup) {
       const columns = new Set(
         (await db.getAllAsync<{ name: string }>(`PRAGMA table_info(${table})`)).map((column) => column.name),
       );
-      for (const row of backup.data[table]!) {
+      for (const original of backup.data[table]!) {
+        const row = upgradeRow(table, original, backup.schemaVersion);
         const keys = Object.keys(row).filter((key) => columns.has(key));
         if (keys.length === 0) continue;
         await db.runAsync(

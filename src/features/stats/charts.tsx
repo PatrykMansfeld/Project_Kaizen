@@ -18,7 +18,8 @@ export function StatTile({ label, value, detail }: { label: string; value: strin
       style={[
         styles.tile,
         { backgroundColor: colors.surface },
-        cardBorderWidth > 0 && { borderWidth: cardBorderWidth, borderColor: colors.cardBorder },
+        // Ramka zawsze podana (w stylu klasycznym 0), bo usunięcie jej na Androidzie potrafi schować treść karty.
+        { borderWidth: cardBorderWidth, borderColor: cardBorderWidth > 0 ? colors.cardBorder : 'transparent' },
       ]}>
       <AppText variant="caption" tone="textSecondary">
         {label}

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Card } from '@/components/card';
@@ -9,6 +9,7 @@ import { Chip } from '@/components/chip';
 import { EmptyLine } from '@/components/empty-state';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
+import { ShowAllLink } from '@/components/text-link';
 import {
   CHORES_SQL,
   HOME_TABLES,
@@ -55,11 +56,7 @@ export function HomeScreen() {
           <WarrantyRow key={warranty.id} warranty={warranty} today={today} />
         ))}
         {warranties.length > WARRANTIES_PREVIEW ? (
-          <Pressable onPress={() => setAllWarranties(!allWarranties)} accessibilityRole="button" hitSlop={8}>
-            <AppText variant="caption" tone="accent">
-              {allWarranties ? 'Pokaż mniej' : `Pokaż wszystkie (${warranties.length})`}
-            </AppText>
-          </Pressable>
+          <ShowAllLink expanded={allWarranties} total={warranties.length} onPress={() => setAllWarranties(!allWarranties)} />
         ) : null}
       </Section>
 

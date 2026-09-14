@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -21,6 +21,8 @@ import { requestPermissionOrWarn } from '@/features/reminders/permission';
 import { EXPO_GO_NOTICE, notificationsSupported } from '@/features/reminders/reminders';
 import { confirmDelete } from '@/lib/alerts';
 import { WEEKDAYS_SHORT } from '@/lib/dates';
+import { parseWholeNumber } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { PALETTE, PALETTE_KEYS, paletteColor, type PaletteKey } from '@/theme/palette';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -64,37 +66,28 @@ export default function MedicationEditScreen() {
     active: true,
     notes: '',
   });
-  const [loaded, setLoaded] = useState(isNew);
   const [timePickerOpen, setTimePickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (isNew) return;
-    getMedication(db, medId).then((med) => {
-      if (!med) {
-        router.back();
-        return;
-      }
-      const times = parseTimes(med.times);
-      setForm({
-        name: med.name,
-        dose: med.dose,
-        icon: med.icon,
-        color: (med.color in PALETTE ? med.color : 'red') as PaletteKey,
-        scheduled: times.length > 0,
-        times: times.length ? times : ['08:00'],
-        daysMask: med.days_mask,
-        stock: med.stock !== null ? String(med.stock) : '',
-        perDose: med.per_dose,
-        reminders: med.reminders === 1,
-        active: med.active === 1,
-        notes: med.notes,
-      });
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : medId, () => getMedication(db, medId), (med) => {
+    const times = parseTimes(med.times);
+    setForm({
+      name: med.name,
+      dose: med.dose,
+      icon: med.icon,
+      color: (med.color in PALETTE ? med.color : 'red') as PaletteKey,
+      scheduled: times.length > 0,
+      times: times.length ? times : ['08:00'],
+      daysMask: med.days_mask,
+      stock: med.stock !== null ? String(med.stock) : '',
+      perDose: med.per_dose,
+      reminders: med.reminders === 1,
+      active: med.active === 1,
+      notes: med.notes,
     });
-  }, [db, isNew, medId]);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
-  const stock = form.stock.trim() === '' ? null : /^\d+$/.test(form.stock.trim()) ? Number(form.stock.trim()) : NaN;
+  const stock = form.stock.trim() === '' ? null : (parseWholeNumber(form.stock) ?? NaN);
   const stockValid = stock === null || !Number.isNaN(stock);
   const canSave = loaded && form.name.trim().length > 0 && stockValid && (!form.scheduled || form.times.length > 0);
   const color = paletteColor(form.color, dark);

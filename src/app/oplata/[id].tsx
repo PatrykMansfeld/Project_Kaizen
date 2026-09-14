@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -25,6 +25,7 @@ import { requestPermissionOrWarn } from '@/features/reminders/permission';
 import { EXPO_GO_NOTICE, notificationsSupported } from '@/features/reminders/reminders';
 import { confirmDelete } from '@/lib/alerts';
 import { addMonths, fromDateKey, toDateKey, type DateKey } from '@/lib/dates';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { PALETTE, PALETTE_KEYS, paletteColor, type PaletteKey } from '@/theme/palette';
 import { spacing } from '@/theme/theme';
@@ -76,30 +77,21 @@ export default function BillEditScreen() {
     active: true,
     note: '',
   });
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getBill(db, billId).then((bill) => {
-      if (!bill) {
-        router.back();
-        return;
-      }
-      setForm({
-        name: bill.name,
-        icon: bill.icon,
-        color: (bill.color in PALETTE ? bill.color : 'yellow') as PaletteKey,
-        amount: moneyInputText(bill.amount),
-        frequency: bill.frequency,
-        nextDue: bill.next_due,
-        categoryId: bill.category_id,
-        remind: bill.remind_days_before,
-        active: bill.active === 1,
-        note: bill.note,
-      });
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : billId, () => getBill(db, billId), (bill) => {
+    setForm({
+      name: bill.name,
+      icon: bill.icon,
+      color: (bill.color in PALETTE ? bill.color : 'yellow') as PaletteKey,
+      amount: moneyInputText(bill.amount),
+      frequency: bill.frequency,
+      nextDue: bill.next_due,
+      categoryId: bill.category_id,
+      remind: bill.remind_days_before,
+      active: bill.active === 1,
+      note: bill.note,
     });
-  }, [db, isNew, billId]);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const amount = parseMoney(form.amount);

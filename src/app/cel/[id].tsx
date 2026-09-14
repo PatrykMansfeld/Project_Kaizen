@@ -26,6 +26,7 @@ import { GOAL_KINDS, GOAL_KIND_KEYS } from '@/features/goals/goal-format';
 import { confirmDelete } from '@/lib/alerts';
 import { addDays, addMonths, formatDayShort, fromDateKey, toDateKey, type DateKey } from '@/lib/dates';
 import { formatDecimal, parseDecimal } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 
 /** Jednostka pola „cel” w formularzu (dla czasu wpisujemy godziny, w bazie są minuty). */
@@ -69,29 +70,20 @@ export default function GoalEditScreen() {
   const [unit, setUnit] = useState('');
   const [startDate, setStartDate] = useState<DateKey>(today);
   const [endDate, setEndDate] = useState<DateKey>(endOfMonth);
-  const [loaded, setLoaded] = useState(isNew);
   const [startPickerOpen, setStartPickerOpen] = useState(false);
 
-  useEffect(() => {
-    if (isNew) return;
-    getGoal(db, goalId).then((goal) => {
-      if (!goal) {
-        router.back();
-        return;
-      }
-      setTitle(goal.title);
-      setKind(goal.kind);
-      setWorkoutType(goal.workout_type);
-      setHabitId(goal.habit_id);
-      if (goal.measurement_type) setMeasurement(goal.measurement_type);
-      setStartText(goal.start_value !== null ? formatDecimal(goal.start_value, 1) : '');
-      setTargetText(formatDecimal(goal.kind === 'minutes' ? goal.target / 60 : goal.target, 1));
-      setUnit(goal.unit ?? '');
-      setStartDate(goal.start_date);
-      setEndDate(goal.end_date);
-      setLoaded(true);
-    });
-  }, [db, isNew, goalId]);
+  const loaded = useEditRecord(isNew ? null : goalId, () => getGoal(db, goalId), (goal) => {
+    setTitle(goal.title);
+    setKind(goal.kind);
+    setWorkoutType(goal.workout_type);
+    setHabitId(goal.habit_id);
+    if (goal.measurement_type) setMeasurement(goal.measurement_type);
+    setStartText(goal.start_value !== null ? formatDecimal(goal.start_value, 1) : '');
+    setTargetText(formatDecimal(goal.kind === 'minutes' ? goal.target / 60 : goal.target, 1));
+    setUnit(goal.unit ?? '');
+    setStartDate(goal.start_date);
+    setEndDate(goal.end_date);
+  });
 
   // Cel „pomiar”: start podpowiada się z ostatniego pomiaru.
   useEffect(() => {

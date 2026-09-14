@@ -22,7 +22,7 @@ import {
 } from '@/features/progress/xp';
 import { useXp } from '@/features/progress/xp-provider';
 import { BarList, ColumnChart, Meter, StatRow, StatTile } from '@/features/stats/charts';
-import { addDays, formatDateRange, fromDateKey } from '@/lib/dates';
+import { addDays, formatDateRange, formatDayMonth } from '@/lib/dates';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -130,10 +130,6 @@ function WeeksChart({ summary }: { summary: XpSummary }) {
   const weeks = summary.weeks;
   const current = weeks.find((week) => week.start === selected) ?? weeks[weeks.length - 1];
   const max = Math.max(...weeks.map((week) => week.xp), 100);
-  const label = (start: string) => {
-    const date = fromDateKey(start);
-    return `${date.getDate()}.${String(date.getMonth() + 1).padStart(2, '0')}`;
-  };
 
   return (
     <Section title="Ostatnie 12 tygodni">
@@ -146,8 +142,8 @@ function WeeksChart({ summary }: { summary: XpSummary }) {
           columns={weeks.map((week, index) => ({
             key: week.start,
             value: week.xp,
-            axisLabel: index % 3 === 2 ? label(week.start) : undefined,
-            accessibilityLabel: `Tydzień od ${label(week.start)}: ${week.xp} XP`,
+            axisLabel: index % 3 === 2 ? formatDayMonth(week.start) : undefined,
+            accessibilityLabel: `Tydzień od ${formatDayMonth(week.start)}: ${week.xp} XP`,
           }))}
           max={max}
           color={colors.accent}

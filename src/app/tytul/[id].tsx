@@ -1,22 +1,33 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { HeaderTextButton } from '@/components/header';
 import { PhotoField, usePhotoDraft } from '@/components/photo-field';
+import { RatingPicker } from '@/components/rating-picker';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
-import { StarRating } from '@/components/star-rating';
 import { TextField } from '@/components/text-field';
 import { createMediaItem, deleteMediaItem, getMediaItem, updateMediaItem, type MediaKind, type MediaStatus } from '@/db/media';
-import { MEDIA_KINDS, MEDIA_KIND_KEYS, MEDIA_STATUSES, isMediaKind, normalizeMedia } from '@/features/media/media';
+import {
+  isMediaKind,
+  MEDIA_KIND_KEYS,
+  MEDIA_KINDS,
+  MEDIA_STATUSES,
+  normalizeMedia,
+  parseGenres,
+  RATING_LABELS,
+  toggleGenre,
+} from '@/features/media/media';
 import { confirmDelete } from '@/lib/alerts';
-import { addDays, type DateKey } from '@/lib/dates';
+import { type DateKey } from '@/lib/dates';
+import { formatDecimal, parseDecimal, parseWholeNumber } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
 
@@ -34,12 +45,12 @@ type Form = {
   startedOn: DateKey | null;
   finishedOn: DateKey | null;
   note: string;
+  /** Długość filmu albo odcinka (min), obejrzane odcinki łącznie, czas gry (h, z przecinkiem). */
+  length: string;
+  seen: string;
+  played: string;
+  genres: string;
 };
-
-/** Liczba z pola (tylko cyfry) albo null. */
-function parseCount(text: string) {
-  return /^\d+$/.test(text.trim()) ? Number(text.trim()) : null;
-}
 
 /** Pola postępu: sezon i odcinek (serial, anime) albo tom i rozdział (manga); książka ma stronę i liczbę stron. */
 const PROGRESS_FIELDS = {
@@ -69,49 +80,60 @@ export default function MediaEditScreen() {
     startedOn: null,
     finishedOn: null,
     note: '',
+    length: '',
+    seen: '',
+    played: '',
+    genres: '',
   });
-  const [loaded, setLoaded] = useState(isNew);
+  const [customGenre, setCustomGenre] = useState('');
   const cover = usePhotoDraft('media-covers');
 
-  useEffect(() => {
-    if (isNew) return;
-    getMediaItem(db, itemId).then((item) => {
-      if (!item) {
-        router.back();
-        return;
-      }
-      setForm({
-        kind: item.kind,
-        title: item.title,
-        creator: item.creator,
-        status: item.status,
-        rating: item.rating,
-        platform: item.platform,
-        year: item.release_year ? String(item.release_year) : '',
-        season: item.season ? String(item.season) : '',
-        episode: item.episode ? String(item.episode) : '',
-        total: item.total ? String(item.total) : '',
-        startedOn: item.started_on,
-        finishedOn: item.finished_on,
-        note: item.note,
-      });
-      cover.load(item.cover_uri);
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : itemId, () => getMediaItem(db, itemId), (item) => {
+    setForm({
+      kind: item.kind,
+      title: item.title,
+      creator: item.creator,
+      status: item.status,
+      rating: item.rating,
+      platform: item.platform,
+      year: item.release_year ? String(item.release_year) : '',
+      season: item.season ? String(item.season) : '',
+      episode: item.episode ? String(item.episode) : '',
+      total: item.total ? String(item.total) : '',
+      startedOn: item.started_on,
+      finishedOn: item.finished_on,
+      note: item.note,
+      length: item.length_min ? String(item.length_min) : '',
+      seen: item.episodes_seen ? String(item.episodes_seen) : '',
+      played: item.played_min ? formatDecimal(item.played_min / 60, 1) : '',
+      genres: item.genres,
     });
-  }, [db, isNew, itemId]);
+    cover.load(item.cover_uri);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
   const info = MEDIA_KINDS[form.kind];
-  const year = parseCount(form.year);
+  const year = parseWholeNumber(form.year);
   const yearValid = form.year.trim() === '' || (year !== null && year >= 1000 && year <= 2200);
-  const canSave = loaded && form.title.trim().length > 0 && yearValid;
+  const played = parseDecimal(form.played);
+  const playedValid = played === null || !Number.isNaN(played);
+  const canSave = loaded && form.title.trim().length > 0 && yearValid && playedValid;
+  const selectedGenres = parseGenres(form.genres);
+  const isSelected = (genre: string) => selectedGenres.some((name) => name.toLowerCase() === genre.toLowerCase());
+  // Własne gatunki (spoza podpowiedzi) też są chipami do odznaczenia.
+  const genreChips = [...info.genres, ...selectedGenres.filter((name) => !info.genres.some((g) => g.toLowerCase() === name.toLowerCase()))];
+  const addCustomGenre = () => {
+    const name = customGenre.trim();
+    if (name && !isSelected(name)) update({ genres: toggleGenre(form.genres, name) });
+    setCustomGenre('');
+  };
   const started = form.status !== 'planned';
   const counted = info.progress === 'episodes' || info.progress === 'chapters' ? PROGRESS_FIELDS[info.progress] : null;
 
   const save = async () => {
     if (!canSave) return;
-    const season = parseCount(form.season);
-    const total = parseCount(form.total);
+    const season = parseWholeNumber(form.season);
+    const total = parseWholeNumber(form.total);
     const input = normalizeMedia(
       {
         kind: form.kind,
@@ -122,12 +144,16 @@ export default function MediaEditScreen() {
         platform: form.platform,
         release_year: year,
         season: season && season > 0 ? season : null,
-        episode: parseCount(form.episode),
+        episode: parseWholeNumber(form.episode),
         total: total && total > 0 ? total : null,
         started_on: form.startedOn,
         finished_on: form.finishedOn,
         note: form.note,
         cover_uri: cover.uri,
+        length_min: parseWholeNumber(form.length),
+        episodes_seen: parseWholeNumber(form.seen),
+        played_min: played !== null && !Number.isNaN(played) ? Math.round(played * 60) : null,
+        genres: form.genres,
       },
       today,
     );
@@ -247,10 +273,87 @@ export default function MediaEditScreen() {
             </View>
           ) : null}
 
+          <Section title="Gatunki">
+            <ChipRow>
+              {genreChips.map((genre) => (
+                <Chip
+                  key={genre}
+                  label={genre}
+                  selected={isSelected(genre)}
+                  onPress={() => update({ genres: toggleGenre(form.genres, genre) })}
+                />
+              ))}
+            </ChipRow>
+            <TextField
+              value={customGenre}
+              onChangeText={setCustomGenre}
+              placeholder="Własny gatunek, np. Cyberpunk"
+              returnKeyType="done"
+              submitBehavior="submit"
+              onSubmitEditing={addCustomGenre}
+              onBlur={addCustomGenre}
+              maxLength={30}
+            />
+          </Section>
+
+          {form.kind === 'movie' ? (
+            <TextField
+              label="Długość filmu (min)"
+              value={form.length}
+              onChangeText={(length) => update({ length })}
+              placeholder="np. 120"
+              keyboardType="number-pad"
+              maxLength={4}
+            />
+          ) : null}
+          {info.progress === 'episodes' ? (
+            <View style={styles.pair}>
+              <View style={styles.flex}>
+                <TextField
+                  label="Odcinek (min)"
+                  value={form.length}
+                  onChangeText={(length) => update({ length })}
+                  placeholder={form.kind === 'anime' ? 'np. 24' : 'np. 45'}
+                  keyboardType="number-pad"
+                  maxLength={3}
+                />
+              </View>
+              {started ? (
+                <View style={styles.flex}>
+                  <TextField
+                    label="Obejrzane odcinki"
+                    value={form.seen}
+                    onChangeText={(seen) => update({ seen })}
+                    placeholder="łącznie"
+                    keyboardType="number-pad"
+                    maxLength={5}
+                  />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+          {form.kind === 'game' && started ? (
+            <>
+              <TextField
+                label="Czas gry (godziny)"
+                value={form.played}
+                onChangeText={(text) => update({ played: text })}
+                placeholder="np. 25"
+                keyboardType="decimal-pad"
+                maxLength={6}
+              />
+              {!playedValid ? (
+                <AppText variant="caption" tone="danger">
+                  Wpisz liczbę godzin, np. 25 albo 12,5.
+                </AppText>
+              ) : null}
+            </>
+          ) : null}
+
           {form.status === 'done' ? (
             <>
               <Section title="Ocena">
-                <StarRating value={form.rating} onChange={(rating) => update({ rating })} />
+                <RatingPicker value={form.rating} onChange={(rating) => update({ rating })} labels={RATING_LABELS} />
               </Section>
               <Section title="Kiedy">
                 <DateChoice
@@ -258,10 +361,7 @@ export default function MediaEditScreen() {
                   onChange={(finishedOn) => finishedOn && update({ finishedOn })}
                   today={today}
                   pickerTitle="Kiedy?"
-                  presets={[
-                    { label: 'Dziś', date: today },
-                    { label: 'Wczoraj', date: addDays(today, -1) },
-                  ]}
+                  presets={recentDayPresets(today)}
                 />
               </Section>
             </>

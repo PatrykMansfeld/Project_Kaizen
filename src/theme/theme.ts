@@ -1,5 +1,7 @@
 import { Platform, type TextStyle } from 'react-native';
 
+import { sakuraDark, sakuraLight, terminal, vaporDark, vaporLight, zenDark, zenLight } from './style-palettes';
+
 const light = {
   background: '#F7F7F8',
   surface: '#FFFFFF',
@@ -61,208 +63,6 @@ const darkClassic: ThemeColors = {
   decor: '#19191B',
   decorAlt: '#19191B',
   decorLine: '#19191B',
-};
-
-/**
- * Vaporwave, wersja dzienna: pastelowy róż, mięta i fiolet. Tekst ≥ 4,5:1 na tle i kartach;
- * kolory modułów sprawdzone walidatorem (daltonizm, jasność, kontrast) na białych kartach.
- */
-const vaporLight: ThemeColors = {
-  background: '#FFF0F8',
-  surface: '#FFFFFF',
-  surfaceAlt: '#F6E6FF',
-  border: '#EBC8F2',
-  text: '#2E1A47',
-  textSecondary: '#6A4C8C',
-  textMuted: '#735A91',
-  accent: '#A3228F',
-  accentSoft: '#FBD9F0',
-  onAccent: '#FFFFFF',
-  danger: '#C2285A',
-  warning: '#9C5000',
-  success: '#097658',
-  activity: '#E0600C',
-  habits: '#0E9A74',
-  tasks: '#5B5BE6',
-  journal: '#C2358E',
-  notes: '#B7860B',
-  finance: '#0E8A7D',
-  chrome: '#FFD6EC',
-  cardBorder: '#EFC3EC',
-  decor: '#FFC36B',
-  decorAlt: '#FF7EB8',
-  decorLine: '#56C8D8',
-};
-
-/** Vaporwave, wersja nocna: neon na fioletowej nocy. Te same sprawdzenia na ciemnych kartach. */
-const vaporDark: ThemeColors = {
-  background: '#1A0F33',
-  surface: '#26164A',
-  surfaceAlt: '#321D5C',
-  border: '#4A2F7A',
-  text: '#F4EEFF',
-  textSecondary: '#C9B8EE',
-  textMuted: '#9C88C8',
-  accent: '#FF6EC7',
-  accentSoft: '#4A1F5E',
-  onAccent: '#1A0F33',
-  danger: '#FF6B93',
-  warning: '#FFB347',
-  success: '#4FE3B5',
-  activity: '#E0712A',
-  habits: '#12A57A',
-  tasks: '#6F7DF0',
-  journal: '#E0469F',
-  notes: '#E8B84A',
-  finance: '#3CC8D8',
-  chrome: '#2B1257',
-  cardBorder: '#5B3A94',
-  decor: '#FFB347',
-  decorAlt: '#FF4FB0',
-  decorLine: '#B04FE0',
-};
-
-/**
- * Zen, wersja dzienna: papier washi, tusz sumi i czerwień pieczątki (shu). Tekst ≥ 4,5:1 na tle i kartach;
- * kolory modułów sprawdzone walidatorem na kartach.
- */
-const zenLight: ThemeColors = {
-  background: '#F4EFE6',
-  surface: '#FBF8F2',
-  surfaceAlt: '#EDE6D9',
-  border: '#DDD3C2',
-  text: '#1F1B16',
-  textSecondary: '#5C5248',
-  textMuted: '#6F6457',
-  accent: '#B3322A',
-  accentSoft: '#F3DDD5',
-  onAccent: '#FFFFFF',
-  danger: '#8C2D5A',
-  warning: '#8A5300',
-  success: '#3D6B35',
-  activity: '#C8541A',
-  habits: '#2B8C66',
-  tasks: '#3A62C4',
-  journal: '#B23E78',
-  notes: '#A87812',
-  finance: '#1F7A70',
-  chrome: '#EFE8DB',
-  cardBorder: '#E2D8C6',
-  decor: '#1F1B16',
-  decorAlt: '#B3322A',
-  decorLine: '#1F1B16',
-};
-
-/** Zen, wersja nocna: tusz i złoto. Te same sprawdzenia na ciemnych kartach. */
-const zenDark: ThemeColors = {
-  background: '#15130F',
-  surface: '#1E1B16',
-  surfaceAlt: '#29251E',
-  border: '#3A342A',
-  text: '#EDE6D8',
-  textSecondary: '#BDB3A2',
-  textMuted: '#9A8F7D',
-  accent: '#D6A84A',
-  accentSoft: '#3A2F17',
-  onAccent: '#15130F',
-  danger: '#E8776A',
-  warning: '#E88C4E',
-  success: '#8DC27A',
-  activity: '#D0632A',
-  habits: '#2A9A72',
-  tasks: '#6A8CE6',
-  journal: '#CF5F9E',
-  notes: '#AD8428',
-  finance: '#3AAFA0',
-  chrome: '#1B1814',
-  cardBorder: '#3A342A',
-  decor: '#EDE6D8',
-  decorAlt: '#C8453A',
-  decorLine: '#D6A84A',
-};
-
-/** Sakura, wersja dzienna: biel, płatki wiśni i wiśniowy akcent. Te same sprawdzenia. */
-const sakuraLight: ThemeColors = {
-  background: '#FFF4F6',
-  surface: '#FFFFFF',
-  surfaceAlt: '#FCE8EE',
-  border: '#F4CCD8',
-  text: '#2B1A20',
-  textSecondary: '#6B4B55',
-  textMuted: '#7A5A65',
-  accent: '#AD2F63',
-  accentSoft: '#FADCE7',
-  onAccent: '#FFFFFF',
-  danger: '#B3261E',
-  warning: '#8F5000',
-  success: '#2A7355',
-  activity: '#E0600C',
-  habits: '#0E9A74',
-  tasks: '#5B5BE6',
-  journal: '#C2358E',
-  notes: '#B7860B',
-  finance: '#008C7E',
-  chrome: '#FFE6EE',
-  cardBorder: '#F6D3DE',
-  decor: '#F4A6C0',
-  decorAlt: '#E07A9F',
-  decorLine: '#8B5A6B',
-};
-
-/** Sakura, wersja nocna: wiśniowa noc i różowe płatki. Te same sprawdzenia na ciemnych kartach. */
-const sakuraDark: ThemeColors = {
-  background: '#1C1216',
-  surface: '#26181E',
-  surfaceAlt: '#321F27',
-  border: '#48303A',
-  text: '#FBEFF3',
-  textSecondary: '#D9B8C4',
-  textMuted: '#B0909C',
-  accent: '#F48FB1',
-  accentSoft: '#4A2233',
-  onAccent: '#1C1216',
-  danger: '#FF7B7B',
-  warning: '#F6A55B',
-  success: '#6FD3A2',
-  activity: '#E0712A',
-  habits: '#12A57A',
-  tasks: '#6F7DF0',
-  journal: '#E0469F',
-  notes: '#B8892A',
-  finance: '#26A898',
-  chrome: '#22151A',
-  cardBorder: '#48303A',
-  decor: '#F4A6C0',
-  decorAlt: '#C76A8E',
-  decorLine: '#7A5563',
-};
-
-/** Terminal: zielony fosfor na czarnym ekranie (tylko ciemny). Te same sprawdzenia na kartach. */
-const terminal: ThemeColors = {
-  background: '#050A05',
-  surface: '#0B140B',
-  surfaceAlt: '#112011',
-  border: '#1C3A1C',
-  text: '#B8F5B0',
-  textSecondary: '#86D47F',
-  textMuted: '#66AE60',
-  accent: '#4AF27A',
-  accentSoft: '#0F2E17',
-  onAccent: '#050A05',
-  danger: '#FF6B5E',
-  warning: '#FFBD2E',
-  success: '#4AF27A',
-  activity: '#D95926',
-  habits: '#199E70',
-  tasks: '#3987E5',
-  journal: '#C957B8',
-  notes: '#B8892A',
-  finance: '#26A898',
-  chrome: '#030703',
-  cardBorder: '#1C3A1C',
-  decor: '#4AF27A',
-  decorAlt: '#2E8B45',
-  decorLine: '#1F5A2C',
 };
 
 export type ThemeStyle = 'classic' | 'vaporwave' | 'zen' | 'sakura' | 'terminal';
@@ -328,6 +128,17 @@ export const ZEN_FONT = 'CormorantGaramond_600SemiBold';
 export const SAKURA_FONT = 'Quicksand_700Bold';
 /** Systemowy krój o stałej szerokości (na Androidzie z polskimi znakami) — bez pobierania. */
 const MONO_FONT = Platform.select({ ios: 'Menlo', default: 'monospace' });
+
+/**
+ * Systemowy krój zwykłego tekstu, podawany zawsze jawnie. Bez niego Android potrafi zgubić tekst: po zmianie stylu
+ * (tekst, który miał własny krój, traci go) albo na telefonach z własną czcionką systemową (OnePlus, Oppo, Xiaomi).
+ */
+export const SYSTEM_FONT = Platform.select({ ios: 'System', default: 'sans-serif' });
+
+/** Krój zwykłego tekstu i pól w danym motywie (terminal — stała szerokość, reszta — systemowy). */
+export function bodyFont(theme: Pick<Theme, 'display'>) {
+  return theme.display?.allText ? theme.display.family : SYSTEM_FONT;
+}
 
 /** Krój pikselowy jest drobniejszy od systemowego — większe rozmiary i bez sztucznego pogrubienia. */
 const VAPOR_DISPLAY: DisplayFont = {

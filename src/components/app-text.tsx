@@ -1,6 +1,6 @@
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
-import type { ThemeColors } from '@/theme/theme';
+import { bodyFont, type ThemeColors } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
 export type AppTextProps = TextProps & {
@@ -13,15 +13,16 @@ export type AppTextProps = TextProps & {
 const DISPLAY_VARIANTS = ['title', 'heading'] as const;
 
 export function AppText({ variant = 'body', tone = 'text', style, ...rest }: AppTextProps) {
-  const { colors, display } = useTheme();
+  const theme = useTheme();
+  const { colors, display } = theme;
   const displayVariant = display ? DISPLAY_VARIANTS.find((name) => name === variant) : undefined;
   return (
     <Text
+      // Po zmianie stylu tekst powstaje od nowa — Android potrafi zostawić stary krój albo pomiar i tekst znika.
+      key={theme.style}
       style={[
         styles[variant],
-        display && displayVariant && [display[displayVariant], { fontFamily: display.family }],
-        // Terminal: cały tekst krojem stałej szerokości, rozmiary zwykłe.
-        display?.allText && !displayVariant && { fontFamily: display.family },
+        display && displayVariant ? [display[displayVariant], { fontFamily: display.family }] : { fontFamily: bodyFont(theme) },
         { color: colors[tone] },
         style,
       ]}

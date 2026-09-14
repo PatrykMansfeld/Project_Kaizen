@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
@@ -12,6 +12,7 @@ import { TextField } from '@/components/text-field';
 import { createMeter, deleteMeter, getMeter, updateMeter } from '@/db/home';
 import { METER_ICONS, METER_UNITS } from '@/features/home/home';
 import { confirmDelete } from '@/lib/alerts';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useTheme } from '@/theme/use-theme';
 
 /** Nowy licznik: /dom/licznik/edycja/nowy, edycja: /dom/licznik/edycja/2. */
@@ -25,21 +26,12 @@ export default function MeterEditScreen() {
   const [name, setName] = useState('');
   const [unit, setUnit] = useState('kWh');
   const [icon, setIcon] = useState(METER_ICONS[0]);
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getMeter(db, meterId).then((meter) => {
-      if (!meter) {
-        router.back();
-        return;
-      }
-      setName(meter.name);
-      setUnit(meter.unit);
-      setIcon(meter.icon);
-      setLoaded(true);
-    });
-  }, [db, isNew, meterId]);
+  const loaded = useEditRecord(isNew ? null : meterId, () => getMeter(db, meterId), (meter) => {
+    setName(meter.name);
+    setUnit(meter.unit);
+    setIcon(meter.icon);
+  });
 
   const canSave = loaded && name.trim().length > 0 && unit.trim().length > 0;
 

@@ -5,7 +5,7 @@ import { AppText } from '@/components/app-text';
 import { Button, IconButton } from '@/components/button';
 import { Icon } from '@/components/icon';
 import type { Exercise, ExerciseSets, WorkoutSetRow } from '@/db/exercises';
-import { formatDecimal, parseDecimal } from '@/lib/format';
+import { formatDecimal, parseDecimal, parseWholeNumber } from '@/lib/format';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
@@ -53,7 +53,7 @@ export function parseDrafts(drafts: ExerciseDraft[]): ExerciseSets[] | null {
   for (const draft of drafts) {
     const sets: ExerciseSets['sets'] = [];
     for (const set of draft.sets) {
-      const reps = /^\d+$/.test(set.reps.trim()) ? Number(set.reps) : NaN;
+      const reps = parseWholeNumber(set.reps) ?? NaN;
       const weight = parseDecimal(set.weight);
       if (!(reps > 0) || Number.isNaN(weight)) return null;
       sets.push({ reps, weight_kg: weight });

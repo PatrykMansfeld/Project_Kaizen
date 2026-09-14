@@ -14,6 +14,7 @@ import { PeriodNavigator } from '@/components/period-navigator';
 import { PromptSheet } from '@/components/prompt-sheet';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
+import { TextLink } from '@/components/text-link';
 import {
   CATEGORIES_SQL,
   FINANCE_TABLES,
@@ -168,11 +169,7 @@ export function FinanceScreen() {
         title={filter === null ? 'Wpisy' : 'Wpisy z kategorii'}
         action={
           filter !== null ? (
-            <Pressable onPress={() => setFilter(null)} hitSlop={8} accessibilityRole="button">
-              <AppText variant="caption" tone="accent">
-                Pokaż wszystkie
-              </AppText>
-            </Pressable>
+            <TextLink label="Pokaż wszystkie" onPress={() => setFilter(null)} />
           ) : undefined
         }>
         {loaded && visible.length === 0 ? (
@@ -246,11 +243,7 @@ function BudgetCard({ budget, spent, allowance, onEdit, onRemove }: BudgetCardPr
         <AppText variant="label" tone="textSecondary" style={styles.flex}>
           Budżet
         </AppText>
-        <Pressable onPress={onEdit} hitSlop={8} accessibilityRole="button">
-          <AppText variant="caption" tone="accent">
-            Zmień
-          </AppText>
-        </Pressable>
+        <TextLink label="Zmień" onPress={onEdit} />
         <Pressable onPress={onRemove} hitSlop={8} accessibilityRole="button">
           <AppText variant="caption" tone="textMuted">
             Usuń

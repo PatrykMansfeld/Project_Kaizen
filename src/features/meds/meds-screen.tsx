@@ -29,7 +29,7 @@ import { useQuery } from '@/db/use-query';
 import { Meter } from '@/features/stats/charts';
 import { groupBy } from '@/lib/collections';
 import type { DateKey } from '@/lib/dates';
-import { plural } from '@/lib/format';
+import { FORMS, parseWholeNumber, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { paletteColor } from '@/theme/palette';
 import { spacing } from '@/theme/theme';
@@ -61,7 +61,7 @@ export function MedsScreen() {
     taken.has(`${med.id}|${time}`) ? untakeDose(db, med, date, time) : takeDose(db, med, date, time);
 
   const saveRefill = async (text: string) => {
-    const amount = /^\d+$/.test(text.trim()) ? Number(text.trim()) : NaN;
+    const amount = parseWholeNumber(text) ?? NaN;
     if (!refill || !(amount > 0)) {
       Alert.alert('Niepoprawna liczba', 'Wpisz, ile sztuk dochodzi, np. 30.');
       return;
@@ -221,7 +221,7 @@ function StockRow({ med, onRefill }: { med: Medication; onRefill: () => void }) 
         <AppText>{med.name}</AppText>
         <AppText variant="caption" tone={low ? 'danger' : 'textSecondary'}>
           Zostało {plural(med.stock ?? 0, ['sztuka', 'sztuki', 'sztuk'])}
-          {days !== null ? ` · ${low ? 'kup zapas — ' : ''}ok. ${plural(days, ['dzień', 'dni', 'dni'])}` : ''}
+          {days !== null ? ` · ${low ? 'kup zapas — ' : ''}ok. ${plural(days, FORMS.day)}` : ''}
         </AppText>
       </View>
       <Chip label="Uzupełnij" icon="add" selected={false} onPress={onRefill} />

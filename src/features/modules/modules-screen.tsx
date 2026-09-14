@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
 import { IconButton } from '@/components/button';
@@ -8,6 +8,7 @@ import { Card } from '@/components/card';
 import { Icon } from '@/components/icon';
 import { ScrollScreen } from '@/components/screen';
 import { Section } from '@/components/section';
+import { TextLink } from '@/components/text-link';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
@@ -44,11 +45,7 @@ export function ModulesScreen() {
         <Section
           title={`Ukryte (${hiddenModules.length})`}
           action={
-            <Pressable onPress={() => setShowHidden(!showHidden)} hitSlop={8} accessibilityRole="button">
-              <AppText variant="caption" tone="accent">
-                {showHidden ? 'Zwiń' : 'Pokaż'}
-              </AppText>
-            </Pressable>
+            <TextLink label={showHidden ? 'Zwiń' : 'Pokaż'} onPress={() => setShowHidden(!showHidden)} />
           }>
           {showHidden ? (
             <View style={styles.grid}>

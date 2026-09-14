@@ -12,7 +12,7 @@ import { Separator } from '@/components/separator';
 import { EXERCISE_SUMMARY_SQL, type ExerciseSummary } from '@/db/exercises';
 import { useQuery } from '@/db/use-query';
 import { formatDayRelative } from '@/lib/dates';
-import { formatDecimal, plural } from '@/lib/format';
+import { FORMS, formatDecimal, plural } from '@/lib/format';
 import { matchesSearch, normalizeForSearch } from '@/lib/search';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
@@ -51,7 +51,7 @@ export default function ExercisesScreen() {
               </AppText>
               <AppText variant="caption" tone="textSecondary">
                 {item.sessions
-                  ? `${plural(item.sessions, ['trening', 'treningi', 'treningów'])} · ostatnio ${
+                  ? `${plural(item.sessions, FORMS.workout)} · ostatnio ${
                       item.last_date ? formatDayRelative(item.last_date, today).toLowerCase() : '—'
                     }`
                   : 'Jeszcze nie robione'}

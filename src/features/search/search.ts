@@ -84,8 +84,18 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
       'SELECT id, name, icon, destination, note, start_date FROM trips ORDER BY start_date DESC',
     ),
     db.getAllAsync<{ trip_id: number; text: string }>("SELECT trip_id, text FROM trip_items WHERE kind = 'plan'"),
-    db.getAllAsync<{ id: number; kind: MediaKind; title: string; creator: string; status: MediaStatus; platform: string; note: string; finished_on: DateKey | null }>(
-      'SELECT id, kind, title, creator, status, platform, note, finished_on FROM media_items ORDER BY finished_on DESC, id DESC',
+    db.getAllAsync<{
+      id: number;
+      kind: MediaKind;
+      title: string;
+      creator: string;
+      status: MediaStatus;
+      platform: string;
+      genres: string;
+      note: string;
+      finished_on: DateKey | null;
+    }>(
+      'SELECT id, kind, title, creator, status, platform, genres, note, finished_on FROM media_items ORDER BY finished_on DESC, id DESC',
     ),
     db.getAllAsync<{ id: number; title: string; icon: string; note: string; done_on: DateKey | null }>(
       'SELECT id, title, icon, note, done_on FROM dreams ORDER BY done_on IS NOT NULL, id DESC',
@@ -210,7 +220,7 @@ export async function searchEverything(db: SQLiteDatabase, query: string): Promi
 
   push(
     media
-      .filter((item) => matchesSearch(`${item.title}\n${item.creator}\n${item.platform}\n${item.note}`, query))
+      .filter((item) => matchesSearch(`${item.title}\n${item.creator}\n${item.platform}\n${item.genres}\n${item.note}`, query))
       .map((item) => ({
         key: `media:${item.id}`,
         kind: 'media' as const,

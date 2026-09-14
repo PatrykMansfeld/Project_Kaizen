@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
@@ -18,6 +18,8 @@ import { requestPermissionOrWarn } from '@/features/reminders/permission';
 import { EXPO_GO_NOTICE, notificationsSupported } from '@/features/reminders/reminders';
 import { confirmDelete } from '@/lib/alerts';
 import { addDays, formatDayShort, type DateKey } from '@/lib/dates';
+import { parseWholeNumber } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -35,30 +37,21 @@ export default function ChoreEditScreen() {
   const { colors } = useTheme();
   const [form, setForm] = useState<Form>({ name: '', icon: HOME_ICONS[0], interval: '30', nextDue: today, remind: true, note: '' });
   const [lastDone, setLastDone] = useState<DateKey | null>(null);
-  const [loaded, setLoaded] = useState(isNew);
 
-  useEffect(() => {
-    if (isNew) return;
-    getChore(db, choreId).then((chore) => {
-      if (!chore) {
-        router.back();
-        return;
-      }
-      setForm({
-        name: chore.name,
-        icon: chore.icon,
-        interval: String(chore.interval_days),
-        nextDue: chore.next_due,
-        remind: chore.remind === 1,
-        note: chore.note,
-      });
-      setLastDone(chore.last_done);
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : choreId, () => getChore(db, choreId), (chore) => {
+    setForm({
+      name: chore.name,
+      icon: chore.icon,
+      interval: String(chore.interval_days),
+      nextDue: chore.next_due,
+      remind: chore.remind === 1,
+      note: chore.note,
     });
-  }, [db, isNew, choreId]);
+    setLastDone(chore.last_done);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
-  const interval = /^\d+$/.test(form.interval.trim()) ? Number(form.interval.trim()) : 0;
+  const interval = parseWholeNumber(form.interval) ?? 0;
   const canSave = loaded && form.name.trim().length > 0 && interval > 0 && interval <= 3650;
 
   const toggleRemind = () => {

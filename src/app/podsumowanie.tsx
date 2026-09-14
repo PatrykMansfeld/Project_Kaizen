@@ -20,7 +20,7 @@ import { moodOf } from '@/features/journal/moods';
 import { useTags } from '@/features/tags/tags';
 import { TaskRow } from '@/features/tasks/task-row';
 import { addDays, formatDayLong, isDateKey } from '@/lib/dates';
-import { plural } from '@/lib/format';
+import { FORMS, plural } from '@/lib/format';
 import { useToday } from '@/lib/use-today';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -51,7 +51,7 @@ export default function ReviewScreen() {
   const reviewed = useSetting('last_review_date') === date;
 
   const moveToTomorrow = () =>
-    Alert.alert('Przenieść na jutro?', `${plural(movable, ['zadanie', 'zadania', 'zadań'])} dostanie termin na jutro.`, [
+    Alert.alert('Przenieść na jutro?', `${plural(movable, FORMS.task)} dostanie termin na jutro.`, [
       { text: 'Anuluj', style: 'cancel' },
       { text: 'Przenieś', onPress: () => void moveOpenTasksToNextDay(db, date) },
     ]);
@@ -76,7 +76,7 @@ export default function ReviewScreen() {
       habits.length ? `Nawyki: ${habitsDone} z ${habits.length}` : null,
       `Zadania: ${plural(tasksDone, ['zrobione', 'zrobione', 'zrobionych'])}`,
       mood ? `Nastrój: ${mood.emoji} ${mood.label}` : null,
-      tomorrowTasks.length ? `Na jutro: ${plural(tomorrowTasks.length, ['zadanie', 'zadania', 'zadań'])}` : null,
+      tomorrowTasks.length ? `Na jutro: ${plural(tomorrowTasks.length, FORMS.task)}` : null,
     ]
       .filter(Boolean)
       .join('\n');

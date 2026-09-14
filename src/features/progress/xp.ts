@@ -24,10 +24,6 @@ export const ATTRIBUTES: Record<Attribute, AttributeInfo> = {
 
 export const ATTRIBUTE_KEYS: Attribute[] = ['body', 'mind', 'order', 'spirit'];
 
-export function isAttribute(value: unknown): value is Attribute {
-  return typeof value === 'string' && value in ATTRIBUTES;
-}
-
 const ICON_ATTRIBUTES: Record<string, Attribute> = {};
 for (const icon of ['💧', '🏃', '🚶', '🚴', '🏊', '💪', '😴', '🛏️', '🦷', '🚿', '💊', '🍎', '🥗', '🥛', '🚭', '👟', '🥤', '🧴']) {
   ICON_ATTRIBUTES[icon] = 'body';

@@ -1,11 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import { AppText } from '@/components/app-text';
 import { Button } from '@/components/button';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { EmojiPicker } from '@/components/emoji-picker';
 import { HeaderTextButton } from '@/components/header';
 import { PhotoField, usePhotoDraft } from '@/components/photo-field';
@@ -15,7 +15,9 @@ import { TextField } from '@/components/text-field';
 import { createDream, deleteDream, getDream, updateDream, type DreamCategory } from '@/db/dreams';
 import { DREAM_CATEGORIES, DREAM_CATEGORY_KEYS, DREAM_ICONS, isDreamCategory } from '@/features/dreams/dreams';
 import { confirmDelete } from '@/lib/alerts';
-import { addDays, type DateKey } from '@/lib/dates';
+import { type DateKey } from '@/lib/dates';
+import { parseWholeNumber } from '@/lib/format';
+import { useEditRecord } from '@/lib/use-edit-record';
 import { useToday } from '@/lib/use-today';
 import { useTheme } from '@/theme/use-theme';
 
@@ -46,31 +48,22 @@ export default function DreamEditScreen() {
     note: '',
     doneOn: null,
   });
-  const [loaded, setLoaded] = useState(isNew);
   const photo = usePhotoDraft('dream-photos');
 
-  useEffect(() => {
-    if (isNew) return;
-    getDream(db, dreamId).then((dream) => {
-      if (!dream) {
-        router.back();
-        return;
-      }
-      setForm({
-        title: dream.title,
-        icon: dream.icon,
-        category: dream.category,
-        year: dream.target_year ? String(dream.target_year) : '',
-        note: dream.note,
-        doneOn: dream.done_on,
-      });
-      photo.load(dream.photo_uri);
-      setLoaded(true);
+  const loaded = useEditRecord(isNew ? null : dreamId, () => getDream(db, dreamId), (dream) => {
+    setForm({
+      title: dream.title,
+      icon: dream.icon,
+      category: dream.category,
+      year: dream.target_year ? String(dream.target_year) : '',
+      note: dream.note,
+      doneOn: dream.done_on,
     });
-  }, [db, isNew, dreamId]);
+    photo.load(dream.photo_uri);
+  });
 
   const update = (patch: Partial<Form>) => setForm((current) => ({ ...current, ...patch }));
-  const year = /^\d{4}$/.test(form.year.trim()) ? Number(form.year.trim()) : null;
+  const year = parseWholeNumber(form.year);
   const yearValid = form.year.trim() === '' || (year !== null && year >= 2000 && year <= 2200);
   const canSave = loaded && form.title.trim().length > 0 && yearValid;
   const currentYear = Number(today.slice(0, 4));
@@ -182,10 +175,7 @@ export default function DreamEditScreen() {
                   onChange={(doneOn) => doneOn && update({ doneOn })}
                   today={today}
                   pickerTitle="Kiedy?"
-                  presets={[
-                    { label: 'Dziś', date: today },
-                    { label: 'Wczoraj', date: addDays(today, -1) },
-                  ]}
+                  presets={recentDayPresets(today)}
                 />
                 <PhotoField uri={photo.uri} onPick={photo.pick} onRemove={photo.remove} emptyLabel="Dodaj zdjęcie na pamiątkę" />
               </>

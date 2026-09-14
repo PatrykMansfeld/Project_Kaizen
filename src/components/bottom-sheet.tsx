@@ -2,6 +2,8 @@ import { Children, type ReactNode } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { AppText } from '@/components/app-text';
+import { IconButton } from '@/components/button';
 import { radius, spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
 
@@ -61,6 +63,21 @@ export function SheetActions({ children }: { children: ReactNode }) {
   );
 }
 
+/** Nagłówek okna: tytuł (najwyżej 2 linie), opcjonalny podpis i przycisk zamknięcia. */
+export function SheetTitle({ title, subtitle, onClose }: { title: string; subtitle?: string; onClose?: () => void }) {
+  return (
+    <View style={styles.title}>
+      <View style={styles.titleRow}>
+        <AppText variant="heading" numberOfLines={2} style={styles.flex}>
+          {title}
+        </AppText>
+        {onClose ? <IconButton icon="close" accessibilityLabel="Zamknij" onPress={onClose} /> : null}
+      </View>
+      {subtitle ? <AppText tone="textSecondary">{subtitle}</AppText> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.45)' },
   tallBackdrop: { flex: 0, height: '15%' },
@@ -73,4 +90,7 @@ const styles = StyleSheet.create({
   tallSheet: { flex: 1, paddingTop: spacing.lg },
   actions: { flexDirection: 'row', gap: spacing.md },
   action: { flex: 1 },
+  title: { gap: spacing.xs },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  flex: { flex: 1 },
 });

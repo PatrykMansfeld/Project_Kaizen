@@ -5,11 +5,11 @@ import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { AppText } from '@/components/app-text';
-import { BottomSheet, SheetActions } from '@/components/bottom-sheet';
+import { BottomSheet, SheetActions, SheetTitle } from '@/components/bottom-sheet';
 import { Button, IconButton } from '@/components/button';
 import { Card } from '@/components/card';
 import { Chip, ChipRow } from '@/components/chip';
-import { DateChoice } from '@/components/date-choice';
+import { DateChoice, recentDayPresets } from '@/components/date-choice';
 import { EmojiBadge } from '@/components/emoji-badge';
 import { EmptyState } from '@/components/empty-state';
 import { PhotoField, usePhotoDraft } from '@/components/photo-field';
@@ -19,7 +19,7 @@ import { DREAMS_SQL, markDreamDone, type Dream, type DreamCategory } from '@/db/
 import { useQuery } from '@/db/use-query';
 import { DREAM_CATEGORIES, DREAM_CATEGORY_KEYS, dreamsSummary, targetLabel } from '@/features/dreams/dreams';
 import { Meter } from '@/features/stats/charts';
-import { addDays, formatDayShort, type DateKey } from '@/lib/dates';
+import { formatDayShort, type DateKey } from '@/lib/dates';
 import { useToday } from '@/lib/use-today';
 import { spacing } from '@/theme/theme';
 import { useTheme } from '@/theme/use-theme';
@@ -176,21 +176,13 @@ function FulfillContent({ dream, today, onClose }: { dream: Dream; today: DateKe
 
   return (
     <>
-      <View style={styles.sheetTitle}>
-        <AppText variant="heading" numberOfLines={2}>
-          {dream.icon} {dream.title}
-        </AppText>
-        <AppText tone="textSecondary">Gratulacje! Kiedy to się stało?</AppText>
-      </View>
+      <SheetTitle title={`${dream.icon} ${dream.title}`} subtitle="Gratulacje! Kiedy to się stało?" />
       <DateChoice
         value={date}
         onChange={(day) => day && setDate(day)}
         today={today}
         pickerTitle="Kiedy?"
-        presets={[
-          { label: 'Dziś', date: today },
-          { label: 'Wczoraj', date: addDays(today, -1) },
-        ]}
+        presets={recentDayPresets(today)}
       />
       <PhotoField uri={photo.uri} onPick={photo.pick} onRemove={photo.remove} emptyLabel="Dodaj zdjęcie na pamiątkę" />
       <SheetActions>
@@ -210,5 +202,4 @@ const styles = StyleSheet.create({
   photo: { width: '100%', aspectRatio: 16 / 9 },
   doneText: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   doneEmoji: { fontSize: 24, width: 32, textAlign: 'center' },
-  sheetTitle: { gap: spacing.xs },
 });
